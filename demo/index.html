@@ -1,422 +1,581 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>@zakkster/lite-virtual — boundary-only windowing on lite-signal</title>
-<style>
-:root {
-    --bg: #0a0e14;
-    --panel: #0f1419;
-    --panel-2: #131922;
-    --border: #1f2937;
-    --border-bright: #2d3748;
-    --txt-bright: #e5e7eb;
-    --txt: #9ca3af;
-    --txt-dim: #6b7280;
-    --txt-faint: #4b5563;
-    --lite: #5fe39f;
-    --magenta: #e879a8;
-    --cyan: #7dd3fc;
-    --amber: #f5b942;
-    --red: #ef4444;
-    --mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
-}
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>@zakkster/lite-virtual — boundary-only windowing on lite-signal</title>
+    <style>
+        :root {
+            --bg: #0a0e14;
+            --panel: #0f1419;
+            --panel-2: #131922;
+            --border: #1f2937;
+            --border-bright: #2d3748;
+            --txt-bright: #e5e7eb;
+            --txt: #9ca3af;
+            --txt-dim: #6b7280;
+            --txt-faint: #4b5563;
+            --lite: #5fe39f;
+            --magenta: #e879a8;
+            --cyan: #7dd3fc;
+            --amber: #f5b942;
+            --red: #ef4444;
+            --mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+        }
 
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
-body {
-    background: var(--bg);
-    color: var(--txt);
-    font: 13px/1.5 var(--mono);
-    min-height: 100vh;
-    overflow-x: hidden;
-}
+        * {
+            box-sizing: border-box;
+        }
 
-header.bar {
-    border-bottom: 1px solid var(--border);
-    padding: 14px 24px;
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    background: linear-gradient(180deg, #0c1117 0%, var(--bg) 100%);
-}
-header.bar h1 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--txt-bright);
-    letter-spacing: -0.02em;
-}
-header.bar h1 .lite { color: var(--lite); }
-header.bar .tag {
-    color: var(--txt-dim);
-    font-size: 12px;
-}
-header.bar .headline {
-    margin-left: auto;
-    color: var(--txt);
-    font-size: 12px;
-}
-header.bar .headline strong {
-    color: var(--lite);
-    font-weight: 600;
-}
+        html, body {
+            margin: 0;
+            padding: 0;
+        }
 
-nav.tabs {
-    display: flex;
-    gap: 0;
-    border-bottom: 1px solid var(--border);
-    padding: 0 24px;
-    background: var(--panel);
-}
-nav.tabs button {
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    padding: 12px 20px;
-    color: var(--txt-dim);
-    font: 12px/1 var(--mono);
-    cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
-}
-nav.tabs button:hover { color: var(--txt-bright); }
-nav.tabs button[aria-current="true"] {
-    color: var(--lite);
-    border-bottom-color: var(--lite);
-}
-nav.tabs button .n {
-    color: var(--txt-faint);
-    margin-right: 8px;
-    font-weight: 600;
-}
+        body {
+            background: var(--bg);
+            color: var(--txt);
+            font: 13px/1.5 var(--mono);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
 
-main {
-    padding: 20px 24px;
-    min-height: calc(100vh - 130px);
-}
+        header.bar {
+            border-bottom: 1px solid var(--border);
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            background: linear-gradient(180deg, #0c1117 0%, var(--bg) 100%);
+        }
 
-section.scene {
-    display: none;
-    grid-template-columns: 1fr 340px;
-    gap: 20px;
-    height: calc(100vh - 200px);
-    min-height: 560px;
-}
-section.scene[data-active="true"] { display: grid; }
+        header.bar h1 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--txt-bright);
+            letter-spacing: -0.02em;
+        }
 
-.stage {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-.stage-head {
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: var(--panel-2);
-}
-.stage-head h2 {
-    margin: 0;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--txt-bright);
-}
-.stage-head .sub {
-    color: var(--txt-dim);
-    font-size: 11px;
-}
-.stage-body {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
+        header.bar h1 .lite {
+            color: var(--lite);
+        }
 
-.viewport {
-    flex: 1;
-    /* min-height: 0 lets the flex item shrink below its content size; without
-       this, a tall in-flow child (like a naive virtualizer's block spacer)
-       forces the column to grow and rows render off-screen. */
-    min-height: 0;
-    overflow: auto;
-    background: var(--bg);
-    border: none;
-    /* `contain: strict` includes `contain: size`, which can break
-       scrollHeight in Safari/Firefox. `content` keeps style+paint+layout
-       containment without the size half. */
-    contain: content;
-}
-.viewport .row, .viewport .cell {
-    color: var(--txt-bright);
-    font-size: 12px;
-    font-family: var(--mono);
-    display: flex;
-    align-items: center;
-    padding: 0 14px;
-    border-bottom: 1px solid var(--border);
-    background: var(--panel);
-    user-select: none;
-}
-.viewport .row.alt { background: var(--panel-2); }
-.viewport .row .idx {
-    color: var(--lite);
-    margin-right: 12px;
-    font-variant-numeric: tabular-nums;
-}
-.viewport .row .body {
-    color: var(--txt);
-}
-.viewport .cell {
-    border: 1px solid var(--border);
-    background: var(--panel);
-    font-size: 11px;
-    justify-content: center;
-}
+        header.bar .tag {
+            color: var(--txt-dim);
+            font-size: 12px;
+        }
 
-.trace {
-    height: 90px;
-    border-top: 1px solid var(--border);
-    background: var(--panel-2);
-    position: relative;
-}
-.trace canvas { width: 100%; height: 100%; display: block; }
-.trace .legend {
-    position: absolute;
-    top: 6px;
-    right: 10px;
-    display: flex;
-    gap: 14px;
-    font-size: 10px;
-    color: var(--txt-dim);
-    pointer-events: none;
-}
-.trace .legend span::before {
-    content: "";
-    display: inline-block;
-    width: 8px; height: 8px;
-    margin-right: 5px;
-    vertical-align: middle;
-    border-radius: 1px;
-}
-.trace .legend .l1::before { background: var(--lite); }
-.trace .legend .l2::before { background: var(--magenta); }
-.trace .legend .l3::before { background: var(--cyan); }
+        header.bar .headline {
+            margin-left: auto;
+            color: var(--txt);
+            font-size: 12px;
+        }
 
-.panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-.panel-section {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-.panel-section h3 {
-    margin: 0;
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--txt-faint);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border);
-}
+        header.bar .headline strong {
+            color: var(--lite);
+            font-weight: 600;
+        }
 
-.ctrl {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-.ctrl-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.ctrl label { color: var(--txt); font-size: 11px; }
-.ctrl .val { color: var(--lite); font-variant-numeric: tabular-nums; font-size: 11px; }
-.ctrl input[type="range"] {
-    width: 100%;
-    -webkit-appearance: none;
-    appearance: none;
-    background: var(--border);
-    height: 3px;
-    border-radius: 2px;
-    outline: none;
-}
-.ctrl input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 14px;
-    height: 14px;
-    background: var(--lite);
-    border-radius: 50%;
-    cursor: pointer;
-}
-.ctrl input[type="range"]::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    background: var(--lite);
-    border-radius: 50%;
-    cursor: pointer;
-    border: none;
-}
+        nav.tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+            background: var(--panel);
+        }
 
-.btn {
-    background: var(--panel-2);
-    border: 1px solid var(--border-bright);
-    color: var(--txt-bright);
-    font-family: var(--mono);
-    font-size: 11px;
-    padding: 7px 12px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: border-color 0.15s, color 0.15s;
-}
-.btn:hover { border-color: var(--lite); color: var(--lite); }
-.btn.active { border-color: var(--lite); color: var(--lite); background: rgba(95, 227, 159, 0.06); }
+        nav.tabs button {
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 12px 20px;
+            color: var(--txt-dim);
+            font: 12px/1 var(--mono);
+            cursor: pointer;
+            transition: color 0.15s, border-color 0.15s;
+        }
 
-.metrics {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px 12px;
-}
-.metric {
-    display: flex;
-    flex-direction: column;
-}
-.metric .k {
-    font-size: 10px;
-    color: var(--txt-faint);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-}
-.metric .v {
-    font-size: 18px;
-    color: var(--txt-bright);
-    font-variant-numeric: tabular-nums;
-    line-height: 1.1;
-    margin-top: 2px;
-}
-.metric .v.lite { color: var(--lite); }
-.metric .v.magenta { color: var(--magenta); }
-.metric .v.cyan { color: var(--cyan); }
-.metric .v.amber { color: var(--amber); }
-.metric .v.dim { color: var(--txt-dim); font-size: 13px; padding-top: 4px; }
-.metric .unit { font-size: 10px; color: var(--txt-faint); margin-left: 4px; }
+        nav.tabs button:hover {
+            color: var(--txt-bright);
+        }
 
-footer.telemetry {
-    border-top: 1px solid var(--border);
-    background: var(--panel);
-    padding: 8px 24px;
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    font-size: 11px;
-    color: var(--txt-dim);
-}
-footer.telemetry .pair { display: flex; gap: 6px; align-items: center; }
-footer.telemetry .pair .k { color: var(--txt-faint); }
-footer.telemetry .pair .v { color: var(--txt-bright); font-variant-numeric: tabular-nums; }
-footer.telemetry .pair .v.lite { color: var(--lite); }
-footer.telemetry .pair .v.warn { color: var(--amber); }
-footer.telemetry .pair .v.err { color: var(--red); }
-footer.telemetry .spacer { flex: 1; }
-footer.telemetry .dot {
-    width: 8px; height: 8px;
-    background: var(--lite);
-    border-radius: 50%;
-    margin-right: 6px;
-    animation: pulse 2s ease-in-out infinite;
-}
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-}
+        nav.tabs button[aria-current="true"] {
+            color: var(--lite);
+            border-bottom-color: var(--lite);
+        }
 
-.banner-warn {
-    background: rgba(245, 185, 66, 0.08);
-    border: 1px solid rgba(245, 185, 66, 0.3);
-    color: var(--amber);
-    padding: 8px 12px;
-    border-radius: 5px;
-    font-size: 11px;
-    margin-bottom: 12px;
-}
+        nav.tabs button .n {
+            color: var(--txt-faint);
+            margin-right: 8px;
+            font-weight: 600;
+        }
 
-/* Scene 03 heatmap */
-.heatstrip {
-    height: 28px;
-    border-bottom: 1px solid var(--border);
-    background: var(--panel-2);
-}
-.heatstrip canvas { display: block; width: 100%; height: 100%; }
+        main {
+            padding: 20px 24px;
+            min-height: calc(100vh - 130px);
+        }
 
-/* Scene 04 two-pane */
-.dual {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1px;
-    background: var(--border);
-    flex: 1;
-    overflow: hidden;
-}
-.dual .col {
-    display: flex;
-    flex-direction: column;
-    background: var(--bg);
-    overflow: hidden;
-}
-.dual .col-head {
-    padding: 8px 14px;
-    border-bottom: 1px solid var(--border);
-    background: var(--panel-2);
-    color: var(--txt);
-    font-size: 11px;
-    display: flex;
-    justify-content: space-between;
-}
-.dual .col-head strong { font-weight: 600; }
-.dual .col-head .virt { color: var(--lite); }
-.dual .col-head .naive { color: var(--amber); }
+        section.scene {
+            display: none;
+            grid-template-columns: 1fr 340px;
+            gap: 20px;
+            height: calc(100vh - 200px);
+            min-height: 560px;
+        }
 
-.tag-pill {
-    display: inline-block;
-    padding: 1px 7px;
-    background: rgba(95, 227, 159, 0.1);
-    border: 1px solid rgba(95, 227, 159, 0.3);
-    color: var(--lite);
-    border-radius: 10px;
-    font-size: 10px;
-}
-.tag-pill.warn { background: rgba(245, 185, 66, 0.08); border-color: rgba(245, 185, 66, 0.3); color: var(--amber); }
+        section.scene[data-active="true"] {
+            display: grid;
+        }
 
-.hint {
-    color: var(--txt-faint);
-    font-size: 10px;
-    line-height: 1.4;
-}
-.hint code { color: var(--cyan); background: var(--panel-2); padding: 1px 5px; border-radius: 3px; }
-</style>
-<script type="importmap">
+        .stage {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stage-head {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--panel-2);
+        }
+
+        .stage-head h2 {
+            margin: 0;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--txt-bright);
+        }
+
+        .stage-head .sub {
+            color: var(--txt-dim);
+            font-size: 11px;
+        }
+
+        .stage-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .viewport {
+            flex: 1;
+            /* min-height: 0 lets the flex item shrink below its content size; without
+               this, a tall in-flow child (like a naive virtualizer's block spacer)
+               forces the column to grow and rows render off-screen. */
+            min-height: 0;
+            overflow: auto;
+            background: var(--bg);
+            border: none;
+            /* `contain: strict` includes `contain: size`, which can break
+               scrollHeight in Safari/Firefox. `content` keeps style+paint+layout
+               containment without the size half. */
+            contain: content;
+        }
+
+        .viewport .row, .viewport .cell {
+            color: var(--txt-bright);
+            font-size: 12px;
+            font-family: var(--mono);
+            display: flex;
+            align-items: center;
+            padding: 0 14px;
+            border-bottom: 1px solid var(--border);
+            background: var(--panel);
+            user-select: none;
+        }
+
+        .viewport .row.alt {
+            background: var(--panel-2);
+        }
+
+        .viewport .row .idx {
+            color: var(--lite);
+            margin-right: 12px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .viewport .row .body {
+            color: var(--txt);
+        }
+
+        .viewport .cell {
+            border: 1px solid var(--border);
+            background: var(--panel);
+            font-size: 11px;
+            justify-content: center;
+        }
+
+        .trace {
+            height: 90px;
+            border-top: 1px solid var(--border);
+            background: var(--panel-2);
+            position: relative;
+        }
+
+        .trace canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .trace .legend {
+            position: absolute;
+            top: 6px;
+            right: 10px;
+            display: flex;
+            gap: 14px;
+            font-size: 10px;
+            color: var(--txt-dim);
+            pointer-events: none;
+        }
+
+        .trace .legend span::before {
+            content: "";
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            margin-right: 5px;
+            vertical-align: middle;
+            border-radius: 1px;
+        }
+
+        .trace .legend .l1::before {
+            background: var(--lite);
+        }
+
+        .trace .legend .l2::before {
+            background: var(--magenta);
+        }
+
+        .trace .legend .l3::before {
+            background: var(--cyan);
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .panel-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .panel-section h3 {
+            margin: 0;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--txt-faint);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .ctrl {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .ctrl-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .ctrl label {
+            color: var(--txt);
+            font-size: 11px;
+        }
+
+        .ctrl .val {
+            color: var(--lite);
+            font-variant-numeric: tabular-nums;
+            font-size: 11px;
+        }
+
+        .ctrl input[type="range"] {
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
+            background: var(--border);
+            height: 3px;
+            border-radius: 2px;
+            outline: none;
+        }
+
+        .ctrl input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--lite);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .ctrl input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            background: var(--lite);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn {
+            background: var(--panel-2);
+            border: 1px solid var(--border-bright);
+            color: var(--txt-bright);
+            font-family: var(--mono);
+            font-size: 11px;
+            padding: 7px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+        .btn:hover {
+            border-color: var(--lite);
+            color: var(--lite);
+        }
+
+        .btn.active {
+            border-color: var(--lite);
+            color: var(--lite);
+            background: rgba(95, 227, 159, 0.06);
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 12px;
+        }
+
+        .metric {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .metric .k {
+            font-size: 10px;
+            color: var(--txt-faint);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .metric .v {
+            font-size: 18px;
+            color: var(--txt-bright);
+            font-variant-numeric: tabular-nums;
+            line-height: 1.1;
+            margin-top: 2px;
+        }
+
+        .metric .v.lite {
+            color: var(--lite);
+        }
+
+        .metric .v.magenta {
+            color: var(--magenta);
+        }
+
+        .metric .v.cyan {
+            color: var(--cyan);
+        }
+
+        .metric .v.amber {
+            color: var(--amber);
+        }
+
+        .metric .v.dim {
+            color: var(--txt-dim);
+            font-size: 13px;
+            padding-top: 4px;
+        }
+
+        .metric .unit {
+            font-size: 10px;
+            color: var(--txt-faint);
+            margin-left: 4px;
+        }
+
+        footer.telemetry {
+            border-top: 1px solid var(--border);
+            background: var(--panel);
+            padding: 8px 24px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            font-size: 11px;
+            color: var(--txt-dim);
+        }
+
+        footer.telemetry .pair {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        footer.telemetry .pair .k {
+            color: var(--txt-faint);
+        }
+
+        footer.telemetry .pair .v {
+            color: var(--txt-bright);
+            font-variant-numeric: tabular-nums;
+        }
+
+        footer.telemetry .pair .v.lite {
+            color: var(--lite);
+        }
+
+        footer.telemetry .pair .v.warn {
+            color: var(--amber);
+        }
+
+        footer.telemetry .pair .v.err {
+            color: var(--red);
+        }
+
+        footer.telemetry .spacer {
+            flex: 1;
+        }
+
+        footer.telemetry .dot {
+            width: 8px;
+            height: 8px;
+            background: var(--lite);
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        .banner-warn {
+            background: rgba(245, 185, 66, 0.08);
+            border: 1px solid rgba(245, 185, 66, 0.3);
+            color: var(--amber);
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 11px;
+            margin-bottom: 12px;
+        }
+
+        /* Scene 03 heatmap */
+        .heatstrip {
+            height: 28px;
+            border-bottom: 1px solid var(--border);
+            background: var(--panel-2);
+        }
+
+        .heatstrip canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Scene 04 two-pane */
+        .dual {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background: var(--border);
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .dual .col {
+            display: flex;
+            flex-direction: column;
+            background: var(--bg);
+            overflow: hidden;
+        }
+
+        .dual .col-head {
+            padding: 8px 14px;
+            border-bottom: 1px solid var(--border);
+            background: var(--panel-2);
+            color: var(--txt);
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .dual .col-head strong {
+            font-weight: 600;
+        }
+
+        .dual .col-head .virt {
+            color: var(--lite);
+        }
+
+        .dual .col-head .naive {
+            color: var(--amber);
+        }
+
+        .tag-pill {
+            display: inline-block;
+            padding: 1px 7px;
+            background: rgba(95, 227, 159, 0.1);
+            border: 1px solid rgba(95, 227, 159, 0.3);
+            color: var(--lite);
+            border-radius: 10px;
+            font-size: 10px;
+        }
+
+        .tag-pill.warn {
+            background: rgba(245, 185, 66, 0.08);
+            border-color: rgba(245, 185, 66, 0.3);
+            color: var(--amber);
+        }
+
+        .hint {
+            color: var(--txt-faint);
+            font-size: 10px;
+            line-height: 1.4;
+        }
+
+        .hint code {
+            color: var(--cyan);
+            background: var(--panel-2);
+            padding: 1px 5px;
+            border-radius: 3px;
+        }
+    </style>
+    <script type="importmap">
 {
     "imports": {
-        "@zakkster/lite-signal": "https://cdn.jsdelivr.net/npm/@zakkster/lite-signal@1.1.3/Signal.js"
+        "@zakkster/lite-signal": "https://esm.sh/@zakkster/lite-signal@1.1.5"
     }
 }
-</script>
+
+    </script>
 </head>
 <body>
 
@@ -544,7 +703,9 @@ footer.telemetry .dot {
                 <span class="tag-pill" id="scene02-pill">10,000 rows</span>
             </div>
             <div class="stage-body">
-                <div class="heatstrip"><canvas id="scene02-heat"></canvas></div>
+                <div class="heatstrip">
+                    <canvas id="scene02-heat"></canvas>
+                </div>
                 <div class="viewport" id="scene02-host"></div>
                 <div class="trace">
                     <canvas id="scene02-trace"></canvas>
@@ -733,7 +894,8 @@ footer.telemetry .dot {
                 <p class="hint">
                     Two axes, two integer firstItems, two independent <code>Object.is</code>
                     cutoffs. Scrolling diagonally moves both; horizontally moves only the column
-                    axis. Crossing a row boundary re-renders <strong style="color: var(--magenta)">one row</strong> of cells;
+                    axis. Crossing a row boundary re-renders <strong style="color: var(--magenta)">one row</strong> of
+                    cells;
                     crossing a col boundary <strong style="color: var(--cyan)">one column</strong>.
                 </p>
             </div>
@@ -841,10 +1003,12 @@ footer.telemetry .dot {
 </main>
 
 <footer class="telemetry">
-    <div class="pair"><span class="dot"></span><span class="k">@zakkster/lite-virtual</span><span class="v">1.0.0</span></div>
+    <div class="pair"><span class="dot"></span><span class="k">@zakkster/lite-virtual</span><span class="v">1.1.0</span>
+    </div>
     <div class="pair"><span class="k">peer</span><span class="v">lite-signal 1.1.3</span></div>
     <div class="pair"><span class="k">activeNodes</span><span class="v lite" id="tel-active">—</span></div>
-    <div class="pair"><span class="k">heap</span><span class="v" id="tel-heap">—<span class="unit">MB</span></span></div>
+    <div class="pair"><span class="k">heap</span><span class="v" id="tel-heap">—<span class="unit">MB</span></span>
+    </div>
     <div class="pair"><span class="k">fps</span><span class="v" id="tel-fps">—</span></div>
     <div class="spacer"></div>
     <div class="pair"><span class="k">scene</span><span class="v lite" id="tel-scene">01</span></div>
@@ -852,1244 +1016,1482 @@ footer.telemetry .dot {
 </footer>
 
 <script type="module">
-import {
-    signal, computed, effect, stats,
-} from "@zakkster/lite-signal";
-import {
-    virtualAxis, virtualGrid, variableAxis,
-    mountList, mountGrid, mountVariableList,
-} from "../Virtual.js";
+    import {
+        signal, computed, effect, stats,
+    } from "@zakkster/lite-signal";
+    import {
+        virtualAxis, virtualGrid, variableAxis,
+        mountList, mountGrid, mountVariableList,
+    } from "../Virtual.js";
 
-// ─────────────────────────────────────────────────────────────────────────
-//   Module-level constants — hoisted once, NEVER allocated in hot paths.
-// ─────────────────────────────────────────────────────────────────────────
-const TAU = Math.PI * 2;
-const COLOR_GRID    = "#1f2937";
-const COLOR_AXIS    = "#374151";
-const COLOR_LBL_DIM = "#6b7280";
-const COLOR_LBL_BRT = "#9ca3af";
-const COLOR_LITE    = "#5fe39f";
-const COLOR_MAGENTA = "#e879a8";
-const COLOR_CYAN    = "#7dd3fc";
-const COLOR_AMBER   = "#f5b942";
-const COLOR_BG      = "#131922";
-const FONT_TINY = "9px ui-monospace, Menlo, monospace";
-const FONT_LBL  = "10px ui-monospace, Menlo, monospace";
+    // ─────────────────────────────────────────────────────────────────────────
+    //   Module-level constants — hoisted once, NEVER allocated in hot paths.
+    // ─────────────────────────────────────────────────────────────────────────
+    const COLOR_GRID = "#1f2937";
+    const COLOR_AXIS = "#374151";
+    const COLOR_LBL_DIM = "#6b7280";
+    const COLOR_LITE = "#5fe39f";
+    const COLOR_MAGENTA = "#e879a8";
+    const COLOR_CYAN = "#7dd3fc";
+    const COLOR_AMBER = "#f5b942";
+    const COLOR_BG = "#131922";
+    const FONT_TINY = "9px ui-monospace, Menlo, monospace";
 
-// Generic lite-element-shaped scope. Renderers expect { effect, on, onCleanup }.
-function makeScope() {
-    const stops = [];
-    const cleans = [];
-    return {
-        effect(fn) { const h = effect(fn); stops.push(h); return h; },
-        on(el, type, handler, opts) {
-            el.addEventListener(type, handler, opts);
-            cleans.push(() => el.removeEventListener(type, handler, opts));
-        },
-        onCleanup(fn) { cleans.push(fn); },
-        dispose() {
-            for (let i = stops.length - 1; i >= 0; i--) { try { stops[i](); } catch (_) {} }
-            for (let i = cleans.length - 1; i >= 0; i--) { try { cleans[i](); } catch (_) {} }
-            stops.length = 0; cleans.length = 0;
-        },
-    };
-}
-
-// `n.toLocaleString` spins up the heavy Intl.NumberFormat pipeline (review #3).
-// This regex insertion is allocation-cheap and Intl-free.
-function fmtInt(n) { return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
-function setText(el, t) { if (el.textContent !== t) el.textContent = t; }
-
-// ─────────────────────────────────────────────────────────────────────────
-//   Global telemetry — single rAF loop, diff-guarded writes.
-//   telState is the single source of truth that scenes read FROM (review #2).
-//   Reading .textContent in a per-frame loop would force the browser to
-//   serialize the DOM tree on every read; we keep integers in module scope.
-// ─────────────────────────────────────────────────────────────────────────
-const telActive = document.getElementById("tel-active");
-const telHeap   = document.getElementById("tel-heap");
-const telFps    = document.getElementById("tel-fps");
-const telScene  = document.getElementById("tel-scene");
-
-let frames = 0;
-let fpsT0 = performance.now();
-const telState = { fps: -1, active: -1, heapTenths: -1 };
-
-function telemetryTick(now) {
-    frames++;
-    const dt = now - fpsT0;
-    if (dt >= 500) {
-        const fps = Math.round((frames * 1000) / dt);
-        if (fps !== telState.fps) { telState.fps = fps; setText(telFps, fps + ""); }
-        frames = 0; fpsT0 = now;
-
-        const a = stats().activeNodes;
-        if (a !== telState.active) { telState.active = a; setText(telActive, fmtInt(a)); }
-
-        if (performance.memory) {
-            const mb = Math.round(performance.memory.usedJSHeapSize / 104857.6);  // tenths
-            if (mb !== telState.heapTenths) {
-                telState.heapTenths = mb;
-                telHeap.firstChild.nodeValue = (mb / 10).toFixed(1);
-            }
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-//   Scene lifecycle — only one scene mounted at a time so the lite-signal
-//   default registry (cap 1024) never accumulates.
-// ─────────────────────────────────────────────────────────────────────────
-const sceneStarters = {};
-let currentDispose = null;
-let currentScene = null;
-
-function switchScene(name) {
-    if (name === currentScene) return;
-    if (currentDispose) { try { currentDispose(); } catch (e) { console.warn(e); } }
-    currentScene = name;
-    setText(telScene, name);
-    for (const sec of document.querySelectorAll("section.scene")) {
-        sec.dataset.active = (sec.dataset.scene === name) ? "true" : "false";
-    }
-    for (const btn of document.querySelectorAll("nav.tabs button")) {
-        btn.setAttribute("aria-current", btn.dataset.scene === name ? "true" : "false");
-    }
-    const starter = sceneStarters[name];
-    currentDispose = starter ? starter() : null;
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-//   SCENE 01 — Boundary counter
-// ─────────────────────────────────────────────────────────────────────────
-{
-    const COUNT_LADDER = [1000, 10000, 100000, 1000000, 10000000];
-
-    // Distinct names for this scene
-    function startScene01() {
-        const scope = makeScope();
-        const host = document.getElementById("scene01-host");
-        const trace = document.getElementById("scene01-trace");
-        const tctx = trace.getContext("2d");
-
-        // Hot-path state
-        let renderCount = 0;
-        let scrollCount = 0;
-        let renderThisSecond = 0;
-        let scrollThisSecond = 0;
-        let lastSec = performance.now();
-        let lastRps = -1, lastEps = -1;
-        let lastNodes = -1, lastStart = -1, lastEnd = -1, lastStop = -1;
-
-        // Ring buffer for the trace canvas. Two parallel Float64Array.
-        const TRACE_LEN = 200;
-        const renderRing = new Float64Array(TRACE_LEN);
-        const scrollRing = new Float64Array(TRACE_LEN);
-        let traceHead = 0;
-
-        // Stats DOM nodes
-        const elNodes  = document.getElementById("s01-nodes");
-        const elActive = document.getElementById("s01-active");
-        const elRange  = document.getElementById("s01-range");
-        const elStop   = document.getElementById("s01-stop");
-        const elRps    = document.getElementById("s01-rps");
-        const elEps    = document.getElementById("s01-eps");
-        const elHeap   = document.getElementById("s01-heap");
-        const elFps    = document.getElementById("s01-fps");
-        const elPill   = document.getElementById("scene01-count-pill");
-        const elCountV = document.getElementById("s01-count-v");
-        const elHV     = document.getElementById("s01-h-v");
-        const elOsV    = document.getElementById("s01-os-v");
-
-        // Controls
-        const sCount = document.getElementById("s01-count");
-        const sH     = document.getElementById("s01-h");
-        const sOs    = document.getElementById("s01-os");
-        const btnAuto = document.getElementById("s01-autoscroll");
-        const btnJump = document.getElementById("s01-jump");
-
-        let listScope = null;        // inner scope for the actual list (re-mounted on config change)
-        let axisRef = null;
-        let cfgCount = COUNT_LADDER[parseInt(sCount.value, 10)];
-        let cfgH = parseInt(sH.value, 10);
-        let cfgOs = parseInt(sOs.value, 10);
-
-        function applyConfig() {
-            // Tear down previous list
-            if (listScope) { try { listScope.dispose(); } catch (_) {} listScope = null; }
-            // Clear host children except the spacer we'll let mountList re-create
-            host.innerHTML = "";
-            host.scrollTop = 0;
-
-            listScope = makeScope();
-            renderCount = 0; renderThisSecond = 0;
-            axisRef = mountList(host, listScope, {
-                count: cfgCount,
-                itemHeight: cfgH,
-                viewport: host.clientHeight || 500,
-                overscan: cfgOs,
-                render: (rowEl, i) => {
-                    rowEl.className = (i % 2 === 0) ? "row" : "row alt";
-                    rowEl.style.height = cfgH + "px";
-                    rowEl.style.padding = "0 14px";
-
-                    // THE CACHE: build the inner DOM only once per recycled node.
-                    if (!rowEl.__cached) {
-                        rowEl.innerHTML = `<span class="idx"></span><span class="body"></span>`;
-                        rowEl.__cached = { idx: rowEl.firstChild, body: rowEl.lastChild };
+    // Generic lite-element-shaped scope. Renderers expect { effect, on, onCleanup }.
+    function makeScope() {
+        const stops = [];
+        const cleans = [];
+        return {
+            effect(fn) {
+                const h = effect(fn);
+                stops.push(h);
+                return h;
+            },
+            on(el, type, handler, opts) {
+                el.addEventListener(type, handler, opts);
+                cleans.push(() => el.removeEventListener(type, handler, opts));
+            },
+            onCleanup(fn) {
+                cleans.push(fn);
+            },
+            dispose() {
+                for (let i = stops.length - 1; i >= 0; i--) {
+                    try {
+                        stops[i]();
+                    } catch (_) {
                     }
-
-                    // ZERO-GC WRITE: mutate text of the existing cached spans.
-                    rowEl.__cached.idx.textContent = "#" + i.toString().padStart(8, "0");
-                    rowEl.__cached.body.textContent = "row " + i;
-
-                    renderCount++;
-                    renderThisSecond++;
-                },
-            });
-            setText(elPill, fmtInt(cfgCount) + " rows");
-            setText(elCountV, fmtInt(cfgCount));
-            setText(elHV, cfgH + " px");
-            setText(elOsV, cfgOs + "");
-        }
-        applyConfig();
-
-        // Scroll counter — every scroll event
-        scope.on(host, "scroll", () => { scrollCount++; scrollThisSecond++; }, { passive: true });
-
-        // Per-second tally. Cache integers locally so we sync FROM telState,
-        // never by reading the DOM (review #2 — DOM reads in a rAF loop force
-        // tree serialization and risk layout thrashing).
-        let perSecRaf = 0;
-        let lastFpsLocal = -1, lastActiveLocal = -1, lastHeapLocal = -1;
-        function perSecTick(now) {
-            perSecRaf = requestAnimationFrame(perSecTick);
-            const dt = now - lastSec;
-            if (dt >= 1000) {
-                const rps = Math.round((renderThisSecond * 1000) / dt);
-                const eps = Math.round((scrollThisSecond * 1000) / dt);
-                if (rps !== lastRps) { lastRps = rps; setText(elRps, fmtInt(rps)); }
-                if (eps !== lastEps) { lastEps = eps; setText(elEps, fmtInt(eps)); }
-                renderThisSecond = 0; scrollThisSecond = 0;
-                lastSec = now;
-            }
-            // Sync FPS/active/heap from integer telState, not from telemetry DOM.
-            if (telState.fps !== lastFpsLocal) {
-                lastFpsLocal = telState.fps;
-                setText(elFps, telState.fps + "");
-            }
-            if (telState.active !== lastActiveLocal) {
-                lastActiveLocal = telState.active;
-                setText(elActive, fmtInt(telState.active));
-            }
-            if (telState.heapTenths !== lastHeapLocal) {
-                lastHeapLocal = telState.heapTenths;
-                elHeap.firstChild.nodeValue = (telState.heapTenths / 10).toFixed(1);
-            }
-
-            // Pool size — first child is spacer, the rest are pool rows
-            const n = host.children.length - 1;
-            if (n !== lastNodes) { lastNodes = n; setText(elNodes, fmtInt(n)); }
-
-            // start / end from the axis (cheap untracked reads)
-            const s = axisRef.start.peek();
-            const e = axisRef.end.peek();
-            if (s !== lastStart || e !== lastEnd) {
-                lastStart = s; lastEnd = e;
-                setText(elRange, s + " · " + e);
-            }
-            const st = host.scrollTop | 0;
-            if (st !== lastStop) { lastStop = st; setText(elStop, fmtInt(st)); }
-        }
-        perSecRaf = requestAnimationFrame(perSecTick);
-
-        // Trace canvas — driven by rAF. Captures (renders, scrolls) per frame.
-        let traceRaf = 0;
-        let lastFrameRenders = 0, lastFrameScrolls = 0;
-        function drawTrace01() {
-            traceRaf = requestAnimationFrame(drawTrace01);
-
-            const dRen = renderCount - lastFrameRenders;
-            const dScr = scrollCount - lastFrameScrolls;
-            lastFrameRenders = renderCount;
-            lastFrameScrolls = scrollCount;
-            renderRing[traceHead] = dRen;
-            scrollRing[traceHead] = dScr;
-            traceHead = (traceHead + 1) % TRACE_LEN;
-
-            const w = trace.clientWidth, h = trace.clientHeight;
-            if (trace.width !== (w * devicePixelRatio) | 0) {
-                trace.width = (w * devicePixelRatio) | 0;
-                trace.height = (h * devicePixelRatio) | 0;
-                tctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-            }
-            tctx.fillStyle = COLOR_BG;
-            tctx.fillRect(0, 0, w, h);
-
-            // Find max in either ring (capped at, say, 30 for visual stability)
-            let maxV = 4;
-            for (let i = 0; i < TRACE_LEN; i++) {
-                if (renderRing[i] > maxV) maxV = renderRing[i];
-                if (scrollRing[i] > maxV) maxV = scrollRing[i];
-            }
-            const invMax = 1 / maxV;
-            const stepX = w / TRACE_LEN;
-
-            // Grid lines
-            tctx.strokeStyle = COLOR_GRID;
-            tctx.lineWidth = 1;
-            tctx.beginPath();
-            for (let g = 1; g < 4; g++) {
-                const y = (h * g) >> 2;
-                tctx.moveTo(0, y); tctx.lineTo(w, y);
-            }
-            tctx.stroke();
-
-            // Scroll events (cyan, behind)
-            tctx.strokeStyle = COLOR_CYAN;
-            tctx.globalAlpha = 0.55;
-            tctx.lineWidth = 1.2;
-            tctx.beginPath();
-            for (let i = 0; i < TRACE_LEN; i++) {
-                const idx = (traceHead + i) % TRACE_LEN;
-                const x = i * stepX;
-                const y = h - (scrollRing[idx] * invMax * (h - 6)) - 2;
-                if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
-            }
-            tctx.stroke();
-            tctx.globalAlpha = 1;
-
-            // Renders (magenta, in front)
-            tctx.strokeStyle = COLOR_MAGENTA;
-            tctx.lineWidth = 1.6;
-            tctx.beginPath();
-            for (let i = 0; i < TRACE_LEN; i++) {
-                const idx = (traceHead + i) % TRACE_LEN;
-                const x = i * stepX;
-                const y = h - (renderRing[idx] * invMax * (h - 6)) - 2;
-                if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
-            }
-            tctx.stroke();
-
-            // Scale label
-            tctx.fillStyle = COLOR_LBL_DIM;
-            tctx.font = FONT_TINY;
-            tctx.fillText("peak: " + Math.round(maxV), 6, 12);
-        }
-        traceRaf = requestAnimationFrame(drawTrace01);
-
-        // Sliders
-        sCount.addEventListener("input", () => {
-            cfgCount = COUNT_LADDER[parseInt(sCount.value, 10)];
-            applyConfig();
-        });
-        sH.addEventListener("input", () => {
-            cfgH = parseInt(sH.value, 10);
-            applyConfig();
-        });
-        sOs.addEventListener("input", () => {
-            cfgOs = parseInt(sOs.value, 10);
-            applyConfig();
-        });
-
-        // Auto-scroll + jump
-        let autoRaf = 0;
-        let autoVel = 0.6;
-        btnAuto.addEventListener("click", () => {
-            if (autoRaf) {
-                cancelAnimationFrame(autoRaf); autoRaf = 0;
-                btnAuto.classList.remove("active");
-            } else {
-                btnAuto.classList.add("active");
-                let fpos = host.scrollTop;
-                const max = () => host.scrollHeight - host.clientHeight;
-                function tick() {
-                    autoRaf = requestAnimationFrame(tick);
-                    fpos += autoVel * (1 + Math.sin(performance.now() / 1200) * 3);
-                    if (fpos < 0) { fpos = 0; autoVel = Math.abs(autoVel); }
-                    else if (fpos >= max()) { fpos = max(); autoVel = -Math.abs(autoVel); }
-                    host.scrollTop = fpos;
                 }
-                tick();
-            }
-        });
-        btnJump.addEventListener("click", () => {
-            const i = (Math.random() * cfgCount) | 0;
-            host.scrollTop = i * cfgH;
-        });
-
-        return () => {
-            if (autoRaf) cancelAnimationFrame(autoRaf);
-            cancelAnimationFrame(perSecRaf);
-            cancelAnimationFrame(traceRaf);
-            if (listScope) listScope.dispose();
-            scope.dispose();
+                for (let i = cleans.length - 1; i >= 0; i--) {
+                    try {
+                        cleans[i]();
+                    } catch (_) {
+                    }
+                }
+                stops.length = 0;
+                cleans.length = 0;
+            },
         };
     }
 
-    sceneStarters["01"] = startScene01;
-}
+    // `n.toLocaleString` spins up the heavy Intl.NumberFormat pipeline (review #3).
+    // This regex insertion is allocation-cheap and Intl-free.
+    function fmtInt(n) {
+        return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
 
-// ─────────────────────────────────────────────────────────────────────────
-//   SCENE 02 — Variable heights
-// ─────────────────────────────────────────────────────────────────────────
-{
-    const COUNT_LADDER = [100, 1000, 10000, 100000];
+    function setText(el, t) {
+        if (el.textContent !== t) el.textContent = t;
+    }
 
-    function startScene02() {
-        const scope = makeScope();
-        const host  = document.getElementById("scene02-host");
-        const heat  = document.getElementById("scene02-heat");
-        const trace = document.getElementById("scene02-trace");
-        const hctx = heat.getContext("2d");
-        const tctx = trace.getContext("2d");
+    // ─────────────────────────────────────────────────────────────────────────
+    //   Global telemetry — single rAF loop, diff-guarded writes.
+    //   telState is the single source of truth that scenes read FROM (review #2).
+    //   Reading .textContent in a per-frame loop would force the browser to
+    //   serialize the DOM tree on every read; we keep integers in module scope.
+    // ─────────────────────────────────────────────────────────────────────────
+    const telActive = document.getElementById("tel-active");
+    const telHeap = document.getElementById("tel-heap");
+    const telFps = document.getElementById("tel-fps");
+    const telScene = document.getElementById("tel-scene");
 
-        const sCount = document.getElementById("s02-count");
-        const sVmin  = document.getElementById("s02-vmin");
-        const sVmax  = document.getElementById("s02-vmax");
-        const btnAuto      = document.getElementById("s02-autoscroll");
-        const btnRemeasure = document.getElementById("s02-remeasure");
+    let frames = 0;
+    let fpsT0 = performance.now();
+    const telState = {fps: -1, active: -1, heapTenths: -1};
 
-        const elPill   = document.getElementById("scene02-pill");
-        const elCountV = document.getElementById("s02-count-v");
-        const elVminV  = document.getElementById("s02-vmin-v");
-        const elVmaxV  = document.getElementById("s02-vmax-v");
-        const elPool   = document.getElementById("s02-pool");
-        const elActive = document.getElementById("s02-active");
-        const elRange  = document.getElementById("s02-range");
-        const elTotal  = document.getElementById("s02-total");
-        const elRps    = document.getElementById("s02-rps");
-        const elEps    = document.getElementById("s02-eps");
-        const elPosat  = document.getElementById("s02-posat");
-        const elMin    = document.getElementById("s02-min");
+    function telemetryTick(now) {
+        frames++;
+        const dt = now - fpsT0;
+        if (dt >= 500) {
+            const fps = Math.round((frames * 1000) / dt);
+            if (fps !== telState.fps) {
+                telState.fps = fps;
+                setText(telFps, fps + "");
+            }
+            frames = 0;
+            fpsT0 = now;
 
-        let cfgCount = COUNT_LADDER[parseInt(sCount.value, 10)];
-        let cfgMin   = parseInt(sVmin.value, 10);
-        let cfgMax   = parseInt(sVmax.value, 10);
+            const a = stats().activeNodes;
+            if (a !== telState.active) {
+                telState.active = a;
+                setText(telActive, fmtInt(a));
+            }
 
-        let sizes = new Float64Array(cfgCount);
-        function rebuildSizes() {
-            if (sizes.length !== cfgCount) sizes = new Float64Array(cfgCount);
-            const range = cfgMax - cfgMin;
-            // Deterministic pseudorandom but smooth — gives interesting heatmap.
-            for (let i = 0; i < cfgCount; i++) {
-                // mix two phase-shifted sines + a low-amp PRN
-                const a = Math.sin(i * 0.013) * 0.5 + 0.5;
-                const b = Math.sin(i * 0.087 + 1.7) * 0.3 + 0.5;
-                const c = ((i * 2654435761) >>> 0) / 0xffffffff;
-                const t = (a * 0.5 + b * 0.3 + c * 0.2);
-                sizes[i] = cfgMin + range * t;
+            if (performance.memory) {
+                const mb = Math.round(performance.memory.usedJSHeapSize / 104857.6);  // tenths
+                if (mb !== telState.heapTenths) {
+                    telState.heapTenths = mb;
+                    telHeap.firstChild.nodeValue = (mb / 10).toFixed(1);
+                }
             }
         }
-        rebuildSizes();
+    }
 
-        let renderCount = 0, scrollCount = 0, renderThisSec = 0, scrollThisSec = 0;
-        let lastSec = performance.now();
-        let lastRps = -1, lastEps = -1, lastPool = -1, lastStart = -1, lastEnd = -1, lastTotal = -1, lastPosat = -1, lastMin = -1;
-        let lastActiveLocal = -1;
+    // ─────────────────────────────────────────────────────────────────────────
+    //   Scene lifecycle — only one scene mounted at a time so the lite-signal
+    //   default registry (cap 1024) never accumulates.
+    // ─────────────────────────────────────────────────────────────────────────
+    const sceneStarters = {};
+    let currentDispose = null;
+    let currentScene = null;
 
-        let listScope = null;
-        let axisRef = null;
-        function applyScene02() {
-            if (listScope) { try { listScope.dispose(); } catch (_) {} listScope = null; }
-            host.innerHTML = "";
-            host.scrollTop = 0;
-            listScope = makeScope();
-            axisRef = mountVariableList(host, listScope, {
-                count: cfgCount,
-                sizeAt: (i) => sizes[i],
-                viewport: host.clientHeight || 500,
-                overscan: 3,
-                render: (rowEl, i) => {
-                    rowEl.className = (i % 2 === 0) ? "row" : "row alt";
-                    const h = sizes[i] | 0;
-                    rowEl.style.padding = "0 14px";
+    function switchScene(name) {
+        if (name === currentScene) return;
+        if (currentDispose) {
+            try {
+                currentDispose();
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+        currentScene = name;
+        setText(telScene, name);
+        for (const sec of document.querySelectorAll("section.scene")) {
+            sec.dataset.active = (sec.dataset.scene === name) ? "true" : "false";
+        }
+        for (const btn of document.querySelectorAll("nav.tabs button")) {
+            btn.setAttribute("aria-current", btn.dataset.scene === name ? "true" : "false");
+        }
+        const starter = sceneStarters[name];
+        currentDispose = starter ? starter() : null;
+    }
 
-                    if (!rowEl.__cached) {
-                        rowEl.innerHTML = `<span class="idx"></span><span class="body"></span>`;
-                        rowEl.__cached = { idx: rowEl.firstChild, body: rowEl.lastChild };
+    // ─────────────────────────────────────────────────────────────────────────
+    //   SCENE 01 — Boundary counter
+    // ─────────────────────────────────────────────────────────────────────────
+    {
+        const COUNT_LADDER = [1000, 10000, 100000, 1000000, 10000000];
+
+        // Distinct names for this scene
+        function startScene01() {
+            const scope = makeScope();
+            const host = document.getElementById("scene01-host");
+            const trace = document.getElementById("scene01-trace");
+            const tctx = trace.getContext("2d");
+
+            // Hot-path state
+            let renderCount = 0;
+            let scrollCount = 0;
+            let renderThisSecond = 0;
+            let scrollThisSecond = 0;
+            let lastSec = performance.now();
+            let lastRps = -1, lastEps = -1;
+            let lastNodes = -1, lastStart = -1, lastEnd = -1, lastStop = -1;
+
+            // Ring buffer for the trace canvas. Two parallel Float64Array.
+            const TRACE_LEN = 200;
+            const renderRing = new Float64Array(TRACE_LEN);
+            const scrollRing = new Float64Array(TRACE_LEN);
+            let traceHead = 0;
+
+            // Stats DOM nodes
+            const elNodes = document.getElementById("s01-nodes");
+            const elActive = document.getElementById("s01-active");
+            const elRange = document.getElementById("s01-range");
+            const elStop = document.getElementById("s01-stop");
+            const elRps = document.getElementById("s01-rps");
+            const elEps = document.getElementById("s01-eps");
+            const elHeap = document.getElementById("s01-heap");
+            const elFps = document.getElementById("s01-fps");
+            const elPill = document.getElementById("scene01-count-pill");
+            const elCountV = document.getElementById("s01-count-v");
+            const elHV = document.getElementById("s01-h-v");
+            const elOsV = document.getElementById("s01-os-v");
+
+            // Controls
+            const sCount = document.getElementById("s01-count");
+            const sH = document.getElementById("s01-h");
+            const sOs = document.getElementById("s01-os");
+            const btnAuto = document.getElementById("s01-autoscroll");
+            const btnJump = document.getElementById("s01-jump");
+
+            let listScope = null;        // inner scope for the actual list (re-mounted on config change)
+            let axisRef = null;
+            let cfgCount = COUNT_LADDER[parseInt(sCount.value, 10)];
+            let cfgH = parseInt(sH.value, 10);
+            let cfgOs = parseInt(sOs.value, 10);
+
+            function applyConfig() {
+                // Tear down previous list
+                if (listScope) {
+                    try {
+                        listScope.dispose();
+                    } catch (_) {
                     }
-                    rowEl.__cached.idx.textContent = "#" + i.toString().padStart(7, "0");
-                    rowEl.__cached.body.textContent = "row " + i + " · " + h + "px";
+                    listScope = null;
+                }
+                // Clear host children except the spacer we'll let mountList re-create
+                host.innerHTML = "";
+                host.scrollTop = 0;
 
-                    renderCount++; renderThisSec++;
-                },
-            });
-            setText(elPill, fmtInt(cfgCount) + " rows");
-            setText(elCountV, fmtInt(cfgCount));
-            setText(elVminV, cfgMin + "");
-            setText(elVmaxV, cfgMax + "");
-            drawHeatStrip02();
-        }
-        applyScene02();
+                listScope = makeScope();
+                renderCount = 0;
+                renderThisSecond = 0;
+                axisRef = mountList(host, listScope, {
+                    count: cfgCount,
+                    itemHeight: cfgH,
+                    viewport: host.clientHeight || 500,
+                    overscan: cfgOs,
+                    render: (rowEl, i) => {
+                        rowEl.className = (i % 2 === 0) ? "row" : "row alt";
+                        rowEl.style.height = cfgH + "px";
+                        rowEl.style.padding = "0 14px";
 
-        scope.on(host, "scroll", () => { scrollCount++; scrollThisSec++; }, { passive: true });
+                        // THE CACHE: build the inner DOM only once per recycled node.
+                        if (!rowEl.__cached) {
+                            rowEl.innerHTML = `<span class="idx"></span><span class="body"></span>`;
+                            rowEl.__cached = {idx: rowEl.firstChild, body: rowEl.lastChild};
+                        }
 
-        function drawHeatStrip02() {
-            const w = heat.clientWidth, h = heat.clientHeight;
-            if (heat.width !== (w * devicePixelRatio) | 0) {
-                heat.width = (w * devicePixelRatio) | 0;
-                heat.height = (h * devicePixelRatio) | 0;
-                hctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+                        // ZERO-GC WRITE: mutate text of the existing cached spans.
+                        rowEl.__cached.idx.textContent = "#" + i.toString().padStart(8, "0");
+                        rowEl.__cached.body.textContent = "row " + i;
+
+                        renderCount++;
+                        renderThisSecond++;
+                    },
+                });
+                setText(elPill, fmtInt(cfgCount) + " rows");
+                setText(elCountV, fmtInt(cfgCount));
+                setText(elHV, cfgH + " px");
+                setText(elOsV, cfgOs + "");
             }
-            hctx.fillStyle = COLOR_BG;
-            hctx.fillRect(0, 0, w, h);
-            // Render a downsampled heat bar — one column per `cfgCount/w` rows.
-            const range = cfgMax - cfgMin || 1;
-            const invRange = 1 / range;
-            const step = Math.max(1, cfgCount / w);
-            for (let x = 0; x < w; x++) {
-                const i = (x * step) | 0;
-                if (i >= cfgCount) break;
-                const t = (sizes[i] - cfgMin) * invRange;
-                // green→amber gradient
-                const r = (95 + (245 - 95) * t) | 0;
-                const g = (227 + (185 - 227) * t) | 0;
-                const b = (159 + (66 - 159) * t) | 0;
-                hctx.fillStyle = `rgb(${r},${g},${b})`;
-                hctx.fillRect(x, 2, 1, h - 4);
-            }
-            // Window indicator
-            if (axisRef) {
-                const s = axisRef.start.peek();
-                const e = axisRef.end.peek();
-                const x1 = (s / cfgCount) * w;
-                const x2 = (e / cfgCount) * w;
-                hctx.strokeStyle = "rgba(255,255,255,0.7)";
-                hctx.lineWidth = 1;
-                hctx.strokeRect(x1, 1, Math.max(2, x2 - x1), h - 2);
-            }
-        }
 
-        const TRACE_LEN = 200;
-        const renderRing = new Float64Array(TRACE_LEN);
-        const scrollRing = new Float64Array(TRACE_LEN);
-        const bsDepthRing = new Float64Array(TRACE_LEN);
-        let traceHead = 0;
-        let lastFrameRenders = 0, lastFrameScrolls = 0;
+            applyConfig();
 
-        let perSecRaf = 0;
-        function perSecTick02() {
-            perSecRaf = requestAnimationFrame(perSecTick02);
-            const now = performance.now();
-            const dt = now - lastSec;
-            if (dt >= 1000) {
-                const rps = Math.round((renderThisSec * 1000) / dt);
-                const eps = Math.round((scrollThisSec * 1000) / dt);
-                if (rps !== lastRps) { lastRps = rps; setText(elRps, fmtInt(rps)); }
-                if (eps !== lastEps) { lastEps = eps; setText(elEps, fmtInt(eps)); }
-                renderThisSec = 0; scrollThisSec = 0;
-                lastSec = now;
-            }
-            const pool = host.children.length - 1;
-            if (pool !== lastPool) { lastPool = pool; setText(elPool, fmtInt(pool)); }
-            if (axisRef) {
+            // Scroll counter — every scroll event
+            scope.on(host, "scroll", () => {
+                scrollCount++;
+                scrollThisSecond++;
+            }, {passive: true});
+
+            // Per-second tally. Cache integers locally so we sync FROM telState,
+            // never by reading the DOM (review #2 — DOM reads in a rAF loop force
+            // tree serialization and risk layout thrashing).
+            let perSecRaf = 0;
+            let lastFpsLocal = -1, lastActiveLocal = -1, lastHeapLocal = -1;
+
+            function perSecTick(now) {
+                perSecRaf = requestAnimationFrame(perSecTick);
+                const dt = now - lastSec;
+                if (dt >= 1000) {
+                    const rps = Math.round((renderThisSecond * 1000) / dt);
+                    const eps = Math.round((scrollThisSecond * 1000) / dt);
+                    if (rps !== lastRps) {
+                        lastRps = rps;
+                        setText(elRps, fmtInt(rps));
+                    }
+                    if (eps !== lastEps) {
+                        lastEps = eps;
+                        setText(elEps, fmtInt(eps));
+                    }
+                    renderThisSecond = 0;
+                    scrollThisSecond = 0;
+                    lastSec = now;
+                }
+                // Sync FPS/active/heap from integer telState, not from telemetry DOM.
+                if (telState.fps !== lastFpsLocal) {
+                    lastFpsLocal = telState.fps;
+                    setText(elFps, telState.fps + "");
+                }
+                if (telState.active !== lastActiveLocal) {
+                    lastActiveLocal = telState.active;
+                    setText(elActive, fmtInt(telState.active));
+                }
+                if (telState.heapTenths !== lastHeapLocal) {
+                    lastHeapLocal = telState.heapTenths;
+                    elHeap.firstChild.nodeValue = (telState.heapTenths / 10).toFixed(1);
+                }
+
+                // Pool size — first child is spacer, the rest are pool rows
+                const n = host.children.length - 1;
+                if (n !== lastNodes) {
+                    lastNodes = n;
+                    setText(elNodes, fmtInt(n));
+                }
+
+                // start / end from the axis (cheap untracked reads)
                 const s = axisRef.start.peek();
                 const e = axisRef.end.peek();
                 if (s !== lastStart || e !== lastEnd) {
-                    lastStart = s; lastEnd = e;
+                    lastStart = s;
+                    lastEnd = e;
                     setText(elRange, s + " · " + e);
-                    setText(elPosat, fmtInt(axisRef.positionAt(s) | 0));
                 }
-                const tot = axisRef.totalSize.peek() | 0;
-                if (tot !== lastTotal) { lastTotal = tot; setText(elTotal, fmtInt(tot) + " px"); }
-                const mn = axisRef.minSize() | 0;
-                if (mn !== lastMin) { lastMin = mn; setText(elMin, mn + " px"); }
-            }
-            // State-driven sync (review #2 — no DOM reads in the rAF loop)
-            if (telState.active !== lastActiveLocal) {
-                lastActiveLocal = telState.active;
-                setText(elActive, fmtInt(telState.active));
-            }
-        }
-        perSecRaf = requestAnimationFrame(perSecTick02);
-
-        let traceRaf = 0;
-        function drawTrace02() {
-            traceRaf = requestAnimationFrame(drawTrace02);
-            const dRen = renderCount - lastFrameRenders;
-            const dScr = scrollCount - lastFrameScrolls;
-            lastFrameRenders = renderCount;
-            lastFrameScrolls = scrollCount;
-            // Approximate "binary search depth" — log2(cfgCount) is fixed; we
-            // visualize as scaled scroll events (one search per scroll).
-            const depth = dScr * Math.log2(Math.max(2, cfgCount)) * 0.05;
-
-            renderRing[traceHead] = dRen;
-            scrollRing[traceHead] = dScr;
-            bsDepthRing[traceHead] = depth;
-            traceHead = (traceHead + 1) % TRACE_LEN;
-
-            const w = trace.clientWidth, h = trace.clientHeight;
-            if (trace.width !== (w * devicePixelRatio) | 0) {
-                trace.width = (w * devicePixelRatio) | 0;
-                trace.height = (h * devicePixelRatio) | 0;
-                tctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-            }
-            tctx.fillStyle = COLOR_BG;
-            tctx.fillRect(0, 0, w, h);
-
-            let maxV = 4;
-            for (let i = 0; i < TRACE_LEN; i++) {
-                if (renderRing[i] > maxV) maxV = renderRing[i];
-                if (scrollRing[i] > maxV) maxV = scrollRing[i];
-                if (bsDepthRing[i] > maxV) maxV = bsDepthRing[i];
-            }
-            const invMax = 1 / maxV;
-            const stepX = w / TRACE_LEN;
-
-            tctx.strokeStyle = COLOR_GRID;
-            tctx.lineWidth = 1;
-            tctx.beginPath();
-            for (let g = 1; g < 4; g++) {
-                const y = (h * g) >> 2;
-                tctx.moveTo(0, y); tctx.lineTo(w, y);
-            }
-            tctx.stroke();
-
-            // Scroll
-            tctx.strokeStyle = COLOR_CYAN; tctx.globalAlpha = 0.5; tctx.lineWidth = 1.2;
-            tctx.beginPath();
-            for (let i = 0; i < TRACE_LEN; i++) {
-                const idx = (traceHead + i) % TRACE_LEN;
-                const x = i * stepX;
-                const y = h - (scrollRing[idx] * invMax * (h - 6)) - 2;
-                if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
-            }
-            tctx.stroke();
-            // BS depth
-            tctx.strokeStyle = COLOR_AMBER; tctx.globalAlpha = 0.7; tctx.lineWidth = 1.2;
-            tctx.beginPath();
-            for (let i = 0; i < TRACE_LEN; i++) {
-                const idx = (traceHead + i) % TRACE_LEN;
-                const x = i * stepX;
-                const y = h - (bsDepthRing[idx] * invMax * (h - 6)) - 2;
-                if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
-            }
-            tctx.stroke();
-            // Renders
-            tctx.strokeStyle = COLOR_MAGENTA; tctx.globalAlpha = 1; tctx.lineWidth = 1.6;
-            tctx.beginPath();
-            for (let i = 0; i < TRACE_LEN; i++) {
-                const idx = (traceHead + i) % TRACE_LEN;
-                const x = i * stepX;
-                const y = h - (renderRing[idx] * invMax * (h - 6)) - 2;
-                if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
-            }
-            tctx.stroke();
-
-            tctx.fillStyle = COLOR_LBL_DIM;
-            tctx.font = FONT_TINY;
-            tctx.fillText("peak: " + Math.round(maxV), 6, 12);
-
-            // Update heatmap window indicator periodically
-            if ((traceHead & 7) === 0) drawHeatStrip02();
-        }
-        traceRaf = requestAnimationFrame(drawTrace02);
-
-        sCount.addEventListener("input", () => {
-            cfgCount = COUNT_LADDER[parseInt(sCount.value, 10)];
-            rebuildSizes();
-            applyScene02();
-        });
-        sVmin.addEventListener("input", () => {
-            cfgMin = parseInt(sVmin.value, 10);
-            if (cfgMin > cfgMax) { cfgMin = cfgMax; sVmin.value = cfgMin; }
-            rebuildSizes(); applyScene02();
-        });
-        sVmax.addEventListener("input", () => {
-            cfgMax = parseInt(sVmax.value, 10);
-            if (cfgMax < cfgMin) { cfgMax = cfgMin; sVmax.value = cfgMax; }
-            rebuildSizes(); applyScene02();
-        });
-        btnRemeasure.addEventListener("click", () => {
-            rebuildSizes();
-            if (axisRef) axisRef.remeasure();
-            drawHeatStrip02();
-        });
-
-        let autoRaf = 0;
-        let autoVel = 0.8;
-        btnAuto.addEventListener("click", () => {
-            if (autoRaf) {
-                cancelAnimationFrame(autoRaf); autoRaf = 0;
-                btnAuto.classList.remove("active");
-            } else {
-                btnAuto.classList.add("active");
-                let fpos = host.scrollTop;
-                const max = () => host.scrollHeight - host.clientHeight;
-                function tick() {
-                    autoRaf = requestAnimationFrame(tick);
-                    fpos += autoVel * (1 + Math.sin(performance.now() / 1500) * 2);
-                    if (fpos < 0) { fpos = 0; autoVel = Math.abs(autoVel); }
-                    else if (fpos >= max()) { fpos = max(); autoVel = -Math.abs(autoVel); }
-                    host.scrollTop = fpos;
+                const st = host.scrollTop | 0;
+                if (st !== lastStop) {
+                    lastStop = st;
+                    setText(elStop, fmtInt(st));
                 }
-                tick();
             }
-        });
 
-        return () => {
-            if (autoRaf) cancelAnimationFrame(autoRaf);
-            cancelAnimationFrame(perSecRaf);
-            cancelAnimationFrame(traceRaf);
-            if (listScope) listScope.dispose();
-            scope.dispose();
-        };
+            perSecRaf = requestAnimationFrame(perSecTick);
+
+            // Trace canvas — driven by rAF. Captures (renders, scrolls) per frame.
+            let traceRaf = 0;
+            let lastFrameRenders = 0, lastFrameScrolls = 0;
+
+            function drawTrace01() {
+                traceRaf = requestAnimationFrame(drawTrace01);
+
+                const dRen = renderCount - lastFrameRenders;
+                const dScr = scrollCount - lastFrameScrolls;
+                lastFrameRenders = renderCount;
+                lastFrameScrolls = scrollCount;
+                renderRing[traceHead] = dRen;
+                scrollRing[traceHead] = dScr;
+                traceHead = (traceHead + 1) % TRACE_LEN;
+
+                const w = trace.clientWidth, h = trace.clientHeight;
+                if (trace.width !== (w * devicePixelRatio) | 0) {
+                    trace.width = (w * devicePixelRatio) | 0;
+                    trace.height = (h * devicePixelRatio) | 0;
+                    tctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+                }
+                tctx.fillStyle = COLOR_BG;
+                tctx.fillRect(0, 0, w, h);
+
+                // Find max in either ring (capped at, say, 30 for visual stability)
+                let maxV = 4;
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    if (renderRing[i] > maxV) maxV = renderRing[i];
+                    if (scrollRing[i] > maxV) maxV = scrollRing[i];
+                }
+                const invMax = 1 / maxV;
+                const stepX = w / TRACE_LEN;
+
+                // Grid lines
+                tctx.strokeStyle = COLOR_GRID;
+                tctx.lineWidth = 1;
+                tctx.beginPath();
+                for (let g = 1; g < 4; g++) {
+                    const y = (h * g) >> 2;
+                    tctx.moveTo(0, y);
+                    tctx.lineTo(w, y);
+                }
+                tctx.stroke();
+
+                // Scroll events (cyan, behind)
+                tctx.strokeStyle = COLOR_CYAN;
+                tctx.globalAlpha = 0.55;
+                tctx.lineWidth = 1.2;
+                tctx.beginPath();
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    const idx = (traceHead + i) % TRACE_LEN;
+                    const x = i * stepX;
+                    const y = h - (scrollRing[idx] * invMax * (h - 6)) - 2;
+                    if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
+                }
+                tctx.stroke();
+                tctx.globalAlpha = 1;
+
+                // Renders (magenta, in front)
+                tctx.strokeStyle = COLOR_MAGENTA;
+                tctx.lineWidth = 1.6;
+                tctx.beginPath();
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    const idx = (traceHead + i) % TRACE_LEN;
+                    const x = i * stepX;
+                    const y = h - (renderRing[idx] * invMax * (h - 6)) - 2;
+                    if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
+                }
+                tctx.stroke();
+
+                // Scale label
+                tctx.fillStyle = COLOR_LBL_DIM;
+                tctx.font = FONT_TINY;
+                tctx.fillText("peak: " + Math.round(maxV), 6, 12);
+            }
+
+            traceRaf = requestAnimationFrame(drawTrace01);
+
+            // Sliders
+            sCount.addEventListener("input", () => {
+                cfgCount = COUNT_LADDER[parseInt(sCount.value, 10)];
+                applyConfig();
+            });
+            sH.addEventListener("input", () => {
+                cfgH = parseInt(sH.value, 10);
+                applyConfig();
+            });
+            sOs.addEventListener("input", () => {
+                cfgOs = parseInt(sOs.value, 10);
+                applyConfig();
+            });
+
+            // Auto-scroll + jump
+            let autoRaf = 0;
+            let autoVel = 0.6;
+            btnAuto.addEventListener("click", () => {
+                if (autoRaf) {
+                    cancelAnimationFrame(autoRaf);
+                    autoRaf = 0;
+                    btnAuto.classList.remove("active");
+                } else {
+                    btnAuto.classList.add("active");
+                    let fpos = host.scrollTop;
+                    const max = () => host.scrollHeight - host.clientHeight;
+
+                    function tick() {
+                        autoRaf = requestAnimationFrame(tick);
+                        fpos += autoVel * (1 + Math.sin(performance.now() / 1200) * 3);
+                        if (fpos < 0) {
+                            fpos = 0;
+                            autoVel = Math.abs(autoVel);
+                        } else if (fpos >= max()) {
+                            fpos = max();
+                            autoVel = -Math.abs(autoVel);
+                        }
+                        host.scrollTop = fpos;
+                    }
+
+                    tick();
+                }
+            });
+            btnJump.addEventListener("click", () => {
+                const i = (Math.random() * cfgCount) | 0;
+                host.scrollTop = i * cfgH;
+            });
+
+            return () => {
+                if (autoRaf) cancelAnimationFrame(autoRaf);
+                cancelAnimationFrame(perSecRaf);
+                cancelAnimationFrame(traceRaf);
+                if (listScope) listScope.dispose();
+                scope.dispose();
+            };
+        }
+
+        sceneStarters["01"] = startScene01;
     }
 
-    sceneStarters["02"] = startScene02;
-}
+    // ─────────────────────────────────────────────────────────────────────────
+    //   SCENE 02 — Variable heights
+    // ─────────────────────────────────────────────────────────────────────────
+    {
+        const COUNT_LADDER = [100, 1000, 10000, 100000];
 
-// ─────────────────────────────────────────────────────────────────────────
-//   SCENE 03 — Grid storm
-// ─────────────────────────────────────────────────────────────────────────
-{
-    function startScene03() {
-        const scope = makeScope();
-        const host  = document.getElementById("scene03-host");
-        const trace = document.getElementById("scene03-trace");
-        const tctx = trace.getContext("2d");
+        function startScene02() {
+            const scope = makeScope();
+            const host = document.getElementById("scene02-host");
+            const heat = document.getElementById("scene02-heat");
+            const trace = document.getElementById("scene02-trace");
+            const hctx = heat.getContext("2d");
+            const tctx = trace.getContext("2d");
 
-        const sRh = document.getElementById("s03-rh");
-        const sCw = document.getElementById("s03-cw");
-        const btnAuto = document.getElementById("s03-autoscroll");
+            const sCount = document.getElementById("s02-count");
+            const sVmin = document.getElementById("s02-vmin");
+            const sVmax = document.getElementById("s02-vmax");
+            const btnAuto = document.getElementById("s02-autoscroll");
+            const btnRemeasure = document.getElementById("s02-remeasure");
 
-        const elRhV = document.getElementById("s03-rh-v");
-        const elCwV = document.getElementById("s03-cw-v");
-        const elPool = document.getElementById("s03-pool");
-        const elActive = document.getElementById("s03-active");
-        const elRr = document.getElementById("s03-rrange");
-        const elCr = document.getElementById("s03-crange");
-        const elRps = document.getElementById("s03-rps");
-        const elCps = document.getElementById("s03-cps");
-        const elEps = document.getElementById("s03-eps");
-        const elSps = document.getElementById("s03-sps");
+            const elPill = document.getElementById("scene02-pill");
+            const elCountV = document.getElementById("s02-count-v");
+            const elVminV = document.getElementById("s02-vmin-v");
+            const elVmaxV = document.getElementById("s02-vmax-v");
+            const elPool = document.getElementById("s02-pool");
+            const elActive = document.getElementById("s02-active");
+            const elRange = document.getElementById("s02-range");
+            const elTotal = document.getElementById("s02-total");
+            const elRps = document.getElementById("s02-rps");
+            const elEps = document.getElementById("s02-eps");
+            const elPosat = document.getElementById("s02-posat");
+            const elMin = document.getElementById("s02-min");
 
-        const ROW_COUNT = 50000;
-        const COL_COUNT = 500;
-        let cfgRh = parseInt(sRh.value, 10);
-        let cfgCw = parseInt(sCw.value, 10);
+            let cfgCount = COUNT_LADDER[parseInt(sCount.value, 10)];
+            let cfgMin = parseInt(sVmin.value, 10);
+            let cfgMax = parseInt(sVmax.value, 10);
 
-        let listScope = null;
-        let gridRef = null;
-        let lastRowStart = -1, lastColStart = -1;
-        let rowCrossings = 0, colCrossings = 0;
-        let rowCrossSec = 0, colCrossSec = 0;
-        let cellRenders = 0, cellRenderSec = 0;
-        let scrollCount = 0, scrollSec = 0;
+            let sizes = new Float64Array(cfgCount);
 
-        function applyScene03() {
-            if (listScope) { try { listScope.dispose(); } catch (_) {} listScope = null; }
-            host.innerHTML = "";
-            host.scrollTop = 0; host.scrollLeft = 0;
-            listScope = makeScope();
-            gridRef = mountGrid(host, listScope, {
-                rowCount: ROW_COUNT, colCount: COL_COUNT,
-                rowHeight: cfgRh, colWidth: cfgCw,
-                viewportWidth: host.clientWidth || 800,
-                viewportHeight: host.clientHeight || 400,
-                overscan: 2,
-                render: (cellEl, r, c) => {
-                    cellEl.className = "cell";
-                    cellEl.style.width = cfgCw + "px";
-                    cellEl.style.height = cfgRh + "px";
-                    cellEl.textContent = r + "," + c;
-                    cellRenders++; cellRenderSec++;
+            function rebuildSizes() {
+                if (sizes.length !== cfgCount) sizes = new Float64Array(cfgCount);
+                const range = cfgMax - cfgMin;
+                // Deterministic pseudorandom but smooth — gives interesting heatmap.
+                for (let i = 0; i < cfgCount; i++) {
+                    // mix two phase-shifted sines + a low-amp PRN
+                    const a = Math.sin(i * 0.013) * 0.5 + 0.5;
+                    const b = Math.sin(i * 0.087 + 1.7) * 0.3 + 0.5;
+                    const c = ((i * 2654435761) >>> 0) / 0xffffffff;
+                    const t = (a * 0.5 + b * 0.3 + c * 0.2);
+                    sizes[i] = cfgMin + range * t;
+                }
+            }
+
+            rebuildSizes();
+
+            let renderCount = 0, scrollCount = 0, renderThisSec = 0, scrollThisSec = 0;
+            let lastSec = performance.now();
+            let lastRps = -1, lastEps = -1, lastPool = -1, lastStart = -1, lastEnd = -1, lastTotal = -1, lastPosat = -1,
+                lastMin = -1;
+            let lastActiveLocal = -1;
+
+            let listScope = null;
+            let axisRef = null;
+
+            function applyScene02() {
+                if (listScope) {
+                    try {
+                        listScope.dispose();
+                    } catch (_) {
+                    }
+                    listScope = null;
+                }
+                host.innerHTML = "";
+                host.scrollTop = 0;
+                listScope = makeScope();
+                axisRef = mountVariableList(host, listScope, {
+                    count: cfgCount,
+                    sizeAt: (i) => sizes[i],
+                    viewport: host.clientHeight || 500,
+                    overscan: 3,
+                    render: (rowEl, i) => {
+                        rowEl.className = (i % 2 === 0) ? "row" : "row alt";
+                        const h = sizes[i] | 0;
+                        rowEl.style.padding = "0 14px";
+
+                        if (!rowEl.__cached) {
+                            rowEl.innerHTML = `<span class="idx"></span><span class="body"></span>`;
+                            rowEl.__cached = {idx: rowEl.firstChild, body: rowEl.lastChild};
+                        }
+                        rowEl.__cached.idx.textContent = "#" + i.toString().padStart(7, "0");
+                        rowEl.__cached.body.textContent = "row " + i + " · " + h + "px";
+
+                        renderCount++;
+                        renderThisSec++;
+                    },
+                });
+                setText(elPill, fmtInt(cfgCount) + " rows");
+                setText(elCountV, fmtInt(cfgCount));
+                setText(elVminV, cfgMin + "");
+                setText(elVmaxV, cfgMax + "");
+                drawHeatStrip02();
+            }
+
+            applyScene02();
+
+            scope.on(host, "scroll", () => {
+                scrollCount++;
+                scrollThisSec++;
+            }, {passive: true});
+
+            function drawHeatStrip02() {
+                const w = heat.clientWidth, h = heat.clientHeight;
+                if (heat.width !== (w * devicePixelRatio) | 0) {
+                    heat.width = (w * devicePixelRatio) | 0;
+                    heat.height = (h * devicePixelRatio) | 0;
+                    hctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+                }
+                hctx.fillStyle = COLOR_BG;
+                hctx.fillRect(0, 0, w, h);
+                // Render a downsampled heat bar — one column per `cfgCount/w` rows.
+                const range = cfgMax - cfgMin || 1;
+                const invRange = 1 / range;
+                const step = Math.max(1, cfgCount / w);
+                for (let x = 0; x < w; x++) {
+                    const i = (x * step) | 0;
+                    if (i >= cfgCount) break;
+                    const t = (sizes[i] - cfgMin) * invRange;
+                    // green→amber gradient
+                    const r = (95 + (245 - 95) * t) | 0;
+                    const g = (227 + (185 - 227) * t) | 0;
+                    const b = (159 + (66 - 159) * t) | 0;
+                    hctx.fillStyle = `rgb(${r},${g},${b})`;
+                    hctx.fillRect(x, 2, 1, h - 4);
+                }
+                // Window indicator
+                if (axisRef) {
+                    const s = axisRef.start.peek();
+                    const e = axisRef.end.peek();
+                    const x1 = (s / cfgCount) * w;
+                    const x2 = (e / cfgCount) * w;
+                    hctx.strokeStyle = "rgba(255,255,255,0.7)";
+                    hctx.lineWidth = 1;
+                    hctx.strokeRect(x1, 1, Math.max(2, x2 - x1), h - 2);
+                }
+            }
+
+            const TRACE_LEN = 200;
+            const renderRing = new Float64Array(TRACE_LEN);
+            const scrollRing = new Float64Array(TRACE_LEN);
+            const bsDepthRing = new Float64Array(TRACE_LEN);
+            let traceHead = 0;
+            let lastFrameRenders = 0, lastFrameScrolls = 0;
+
+            let perSecRaf = 0;
+
+            function perSecTick02() {
+                perSecRaf = requestAnimationFrame(perSecTick02);
+                const now = performance.now();
+                const dt = now - lastSec;
+                if (dt >= 1000) {
+                    const rps = Math.round((renderThisSec * 1000) / dt);
+                    const eps = Math.round((scrollThisSec * 1000) / dt);
+                    if (rps !== lastRps) {
+                        lastRps = rps;
+                        setText(elRps, fmtInt(rps));
+                    }
+                    if (eps !== lastEps) {
+                        lastEps = eps;
+                        setText(elEps, fmtInt(eps));
+                    }
+                    renderThisSec = 0;
+                    scrollThisSec = 0;
+                    lastSec = now;
+                }
+                const pool = host.children.length - 1;
+                if (pool !== lastPool) {
+                    lastPool = pool;
+                    setText(elPool, fmtInt(pool));
+                }
+                if (axisRef) {
+                    const s = axisRef.start.peek();
+                    const e = axisRef.end.peek();
+                    if (s !== lastStart || e !== lastEnd) {
+                        lastStart = s;
+                        lastEnd = e;
+                        setText(elRange, s + " · " + e);
+                        setText(elPosat, fmtInt(axisRef.positionAt(s) | 0));
+                    }
+                    const tot = axisRef.totalSize.peek() | 0;
+                    if (tot !== lastTotal) {
+                        lastTotal = tot;
+                        setText(elTotal, fmtInt(tot) + " px");
+                    }
+                    const mn = axisRef.minSize() | 0;
+                    if (mn !== lastMin) {
+                        lastMin = mn;
+                        setText(elMin, mn + " px");
+                    }
+                }
+                // State-driven sync (review #2 — no DOM reads in the rAF loop)
+                if (telState.active !== lastActiveLocal) {
+                    lastActiveLocal = telState.active;
+                    setText(elActive, fmtInt(telState.active));
+                }
+            }
+
+            perSecRaf = requestAnimationFrame(perSecTick02);
+
+            let traceRaf = 0;
+
+            function drawTrace02() {
+                traceRaf = requestAnimationFrame(drawTrace02);
+                const dRen = renderCount - lastFrameRenders;
+                const dScr = scrollCount - lastFrameScrolls;
+                lastFrameRenders = renderCount;
+                lastFrameScrolls = scrollCount;
+                // Approximate "binary search depth" — log2(cfgCount) is fixed; we
+                // visualize as scaled scroll events (one search per scroll).
+                const depth = dScr * Math.log2(Math.max(2, cfgCount)) * 0.05;
+
+                renderRing[traceHead] = dRen;
+                scrollRing[traceHead] = dScr;
+                bsDepthRing[traceHead] = depth;
+                traceHead = (traceHead + 1) % TRACE_LEN;
+
+                const w = trace.clientWidth, h = trace.clientHeight;
+                if (trace.width !== (w * devicePixelRatio) | 0) {
+                    trace.width = (w * devicePixelRatio) | 0;
+                    trace.height = (h * devicePixelRatio) | 0;
+                    tctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+                }
+                tctx.fillStyle = COLOR_BG;
+                tctx.fillRect(0, 0, w, h);
+
+                let maxV = 4;
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    if (renderRing[i] > maxV) maxV = renderRing[i];
+                    if (scrollRing[i] > maxV) maxV = scrollRing[i];
+                    if (bsDepthRing[i] > maxV) maxV = bsDepthRing[i];
+                }
+                const invMax = 1 / maxV;
+                const stepX = w / TRACE_LEN;
+
+                tctx.strokeStyle = COLOR_GRID;
+                tctx.lineWidth = 1;
+                tctx.beginPath();
+                for (let g = 1; g < 4; g++) {
+                    const y = (h * g) >> 2;
+                    tctx.moveTo(0, y);
+                    tctx.lineTo(w, y);
+                }
+                tctx.stroke();
+
+                // Scroll
+                tctx.strokeStyle = COLOR_CYAN;
+                tctx.globalAlpha = 0.5;
+                tctx.lineWidth = 1.2;
+                tctx.beginPath();
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    const idx = (traceHead + i) % TRACE_LEN;
+                    const x = i * stepX;
+                    const y = h - (scrollRing[idx] * invMax * (h - 6)) - 2;
+                    if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
+                }
+                tctx.stroke();
+                // BS depth
+                tctx.strokeStyle = COLOR_AMBER;
+                tctx.globalAlpha = 0.7;
+                tctx.lineWidth = 1.2;
+                tctx.beginPath();
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    const idx = (traceHead + i) % TRACE_LEN;
+                    const x = i * stepX;
+                    const y = h - (bsDepthRing[idx] * invMax * (h - 6)) - 2;
+                    if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
+                }
+                tctx.stroke();
+                // Renders
+                tctx.strokeStyle = COLOR_MAGENTA;
+                tctx.globalAlpha = 1;
+                tctx.lineWidth = 1.6;
+                tctx.beginPath();
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    const idx = (traceHead + i) % TRACE_LEN;
+                    const x = i * stepX;
+                    const y = h - (renderRing[idx] * invMax * (h - 6)) - 2;
+                    if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
+                }
+                tctx.stroke();
+
+                tctx.fillStyle = COLOR_LBL_DIM;
+                tctx.font = FONT_TINY;
+                tctx.fillText("peak: " + Math.round(maxV), 6, 12);
+
+                // Update heatmap window indicator periodically
+                if ((traceHead & 7) === 0) drawHeatStrip02();
+            }
+
+            traceRaf = requestAnimationFrame(drawTrace02);
+
+            sCount.addEventListener("input", () => {
+                cfgCount = COUNT_LADDER[parseInt(sCount.value, 10)];
+                rebuildSizes();
+                applyScene02();
+            });
+            sVmin.addEventListener("input", () => {
+                cfgMin = parseInt(sVmin.value, 10);
+                if (cfgMin > cfgMax) {
+                    cfgMin = cfgMax;
+                    sVmin.value = cfgMin;
+                }
+                rebuildSizes();
+                applyScene02();
+            });
+            sVmax.addEventListener("input", () => {
+                cfgMax = parseInt(sVmax.value, 10);
+                if (cfgMax < cfgMin) {
+                    cfgMax = cfgMin;
+                    sVmax.value = cfgMax;
+                }
+                rebuildSizes();
+                applyScene02();
+            });
+            btnRemeasure.addEventListener("click", () => {
+                rebuildSizes();
+                if (axisRef) axisRef.remeasure();
+                drawHeatStrip02();
+            });
+
+            let autoRaf = 0;
+            let autoVel = 0.8;
+            btnAuto.addEventListener("click", () => {
+                if (autoRaf) {
+                    cancelAnimationFrame(autoRaf);
+                    autoRaf = 0;
+                    btnAuto.classList.remove("active");
+                } else {
+                    btnAuto.classList.add("active");
+                    let fpos = host.scrollTop;
+                    const max = () => host.scrollHeight - host.clientHeight;
+
+                    function tick() {
+                        autoRaf = requestAnimationFrame(tick);
+                        fpos += autoVel * (1 + Math.sin(performance.now() / 1500) * 2);
+                        if (fpos < 0) {
+                            fpos = 0;
+                            autoVel = Math.abs(autoVel);
+                        } else if (fpos >= max()) {
+                            fpos = max();
+                            autoVel = -Math.abs(autoVel);
+                        }
+                        host.scrollTop = fpos;
+                    }
+
+                    tick();
+                }
+            });
+
+            return () => {
+                if (autoRaf) cancelAnimationFrame(autoRaf);
+                cancelAnimationFrame(perSecRaf);
+                cancelAnimationFrame(traceRaf);
+                if (listScope) listScope.dispose();
+                scope.dispose();
+            };
+        }
+
+        sceneStarters["02"] = startScene02;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //   SCENE 03 — Grid storm
+    // ─────────────────────────────────────────────────────────────────────────
+    {
+        function startScene03() {
+            const scope = makeScope();
+            const host = document.getElementById("scene03-host");
+            const trace = document.getElementById("scene03-trace");
+            const tctx = trace.getContext("2d");
+
+            const sRh = document.getElementById("s03-rh");
+            const sCw = document.getElementById("s03-cw");
+            const btnAuto = document.getElementById("s03-autoscroll");
+
+            const elRhV = document.getElementById("s03-rh-v");
+            const elCwV = document.getElementById("s03-cw-v");
+            const elPool = document.getElementById("s03-pool");
+            const elActive = document.getElementById("s03-active");
+            const elRr = document.getElementById("s03-rrange");
+            const elCr = document.getElementById("s03-crange");
+            const elRps = document.getElementById("s03-rps");
+            const elCps = document.getElementById("s03-cps");
+            const elEps = document.getElementById("s03-eps");
+            const elSps = document.getElementById("s03-sps");
+
+            const ROW_COUNT = 50000;
+            const COL_COUNT = 500;
+            let cfgRh = parseInt(sRh.value, 10);
+            let cfgCw = parseInt(sCw.value, 10);
+
+            let listScope = null;
+            let gridRef = null;
+            let lastRowStart = -1, lastColStart = -1;
+            let rowCrossings = 0, colCrossings = 0;
+            let rowCrossSec = 0, colCrossSec = 0;
+            let cellRenders = 0, cellRenderSec = 0;
+            let scrollCount = 0, scrollSec = 0;
+
+            function applyScene03() {
+                if (listScope) {
+                    try {
+                        listScope.dispose();
+                    } catch (_) {
+                    }
+                    listScope = null;
+                }
+                host.innerHTML = "";
+                host.scrollTop = 0;
+                host.scrollLeft = 0;
+                listScope = makeScope();
+                gridRef = mountGrid(host, listScope, {
+                    rowCount: ROW_COUNT, colCount: COL_COUNT,
+                    rowHeight: cfgRh, colWidth: cfgCw,
+                    viewportWidth: host.clientWidth || 800,
+                    viewportHeight: host.clientHeight || 400,
+                    overscan: 2,
+                    render: (cellEl, r, c) => {
+                        cellEl.className = "cell";
+                        cellEl.style.width = cfgCw + "px";
+                        cellEl.style.height = cfgRh + "px";
+                        cellEl.textContent = r + "," + c;
+                        cellRenders++;
+                        cellRenderSec++;
+                    },
+                });
+                // Hook row/col-start subscribers to count crossings.
+                listScope.effect(() => {
+                    const rs = gridRef.rowStart();
+                    if (lastRowStart !== -1 && rs !== lastRowStart) {
+                        rowCrossings++;
+                        rowCrossSec++;
+                    }
+                    lastRowStart = rs;
+                });
+                listScope.effect(() => {
+                    const cs = gridRef.colStart();
+                    if (lastColStart !== -1 && cs !== lastColStart) {
+                        colCrossings++;
+                        colCrossSec++;
+                    }
+                    lastColStart = cs;
+                });
+                setText(elRhV, cfgRh + "");
+                setText(elCwV, cfgCw + "");
+            }
+
+            applyScene03();
+
+            scope.on(host, "scroll", () => {
+                scrollCount++;
+                scrollSec++;
+            }, {passive: true});
+
+            const TRACE_LEN = 240;
+            const rowRing = new Float64Array(TRACE_LEN);
+            const colRing = new Float64Array(TRACE_LEN);
+            const renRing = new Float64Array(TRACE_LEN);
+            let traceHead = 0;
+            let lastFrameRow = 0, lastFrameCol = 0, lastFrameRen = 0;
+
+            let perSecRaf = 0;
+            let lastSec = performance.now();
+            let lastRps = -1, lastCps = -1, lastEps = -1, lastSps = -1, lastPool = -1;
+            let lastActiveLocal = -1;
+
+            function perSecTick03() {
+                perSecRaf = requestAnimationFrame(perSecTick03);
+                const now = performance.now();
+                if (now - lastSec >= 1000) {
+                    const dt = now - lastSec;
+                    const rps = Math.round((rowCrossSec * 1000) / dt);
+                    const cps = Math.round((colCrossSec * 1000) / dt);
+                    const eps = Math.round((cellRenderSec * 1000) / dt);
+                    const sps = Math.round((scrollSec * 1000) / dt);
+                    if (rps !== lastRps) {
+                        lastRps = rps;
+                        setText(elRps, fmtInt(rps));
+                    }
+                    if (cps !== lastCps) {
+                        lastCps = cps;
+                        setText(elCps, fmtInt(cps));
+                    }
+                    if (eps !== lastEps) {
+                        lastEps = eps;
+                        setText(elEps, fmtInt(eps));
+                    }
+                    if (sps !== lastSps) {
+                        lastSps = sps;
+                        setText(elSps, fmtInt(sps));
+                    }
+                    rowCrossSec = 0;
+                    colCrossSec = 0;
+                    cellRenderSec = 0;
+                    scrollSec = 0;
+                    lastSec = now;
+                }
+                const pool = host.children.length - 1;
+                if (pool !== lastPool) {
+                    lastPool = pool;
+                    setText(elPool, fmtInt(pool));
+                }
+                if (gridRef) {
+                    const rs = gridRef.rowStart.peek(), re = gridRef.rowEnd.peek();
+                    const cs = gridRef.colStart.peek(), ce = gridRef.colEnd.peek();
+                    setText(elRr, rs + " · " + re);
+                    setText(elCr, cs + " · " + ce);
+                }
+                // State-driven sync (review #2)
+                if (telState.active !== lastActiveLocal) {
+                    lastActiveLocal = telState.active;
+                    setText(elActive, fmtInt(telState.active));
+                }
+            }
+
+            perSecRaf = requestAnimationFrame(perSecTick03);
+
+            let traceRaf = 0;
+
+            function drawTrace03() {
+                traceRaf = requestAnimationFrame(drawTrace03);
+                const dR = rowCrossings - lastFrameRow;
+                const dC = colCrossings - lastFrameCol;
+                const dE = cellRenders - lastFrameRen;
+                lastFrameRow = rowCrossings;
+                lastFrameCol = colCrossings;
+                lastFrameRen = cellRenders;
+                rowRing[traceHead] = dR;
+                colRing[traceHead] = dC;
+                renRing[traceHead] = dE;
+                traceHead = (traceHead + 1) % TRACE_LEN;
+
+                const w = trace.clientWidth, h = trace.clientHeight;
+                if (trace.width !== (w * devicePixelRatio) | 0) {
+                    trace.width = (w * devicePixelRatio) | 0;
+                    trace.height = (h * devicePixelRatio) | 0;
+                    tctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+                }
+                tctx.fillStyle = COLOR_BG;
+                tctx.fillRect(0, 0, w, h);
+
+                let maxR = 2, maxC = 2, maxE = 4;
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    if (rowRing[i] > maxR) maxR = rowRing[i];
+                    if (colRing[i] > maxC) maxC = colRing[i];
+                    if (renRing[i] > maxE) maxE = renRing[i];
+                }
+                const stepX = w / TRACE_LEN;
+                const halfH = h * 0.5;
+
+                // mid divider
+                tctx.strokeStyle = COLOR_AXIS;
+                tctx.beginPath();
+                tctx.moveTo(0, halfH);
+                tctx.lineTo(w, halfH);
+                tctx.stroke();
+
+                // Render line (background): full height
+                const invE = 1 / maxE;
+                tctx.strokeStyle = COLOR_CYAN;
+                tctx.globalAlpha = 0.4;
+                tctx.lineWidth = 1;
+                tctx.beginPath();
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    const idx = (traceHead + i) % TRACE_LEN;
+                    const x = i * stepX;
+                    const y = h - (renRing[idx] * invE * (h - 8)) - 4;
+                    if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
+                }
+                tctx.stroke();
+                tctx.globalAlpha = 1;
+
+                // Row crossings — upper half (downward bars from mid)
+                const invR = 1 / maxR;
+                tctx.strokeStyle = COLOR_MAGENTA;
+                tctx.lineWidth = 1.6;
+                tctx.beginPath();
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    const idx = (traceHead + i) % TRACE_LEN;
+                    const v = rowRing[idx];
+                    if (v > 0) {
+                        const x = i * stepX + stepX * 0.5;
+                        const y = halfH - (v * invR * (halfH - 4));
+                        tctx.moveTo(x, halfH);
+                        tctx.lineTo(x, y);
+                    }
+                }
+                tctx.stroke();
+
+                // Col crossings — lower half
+                const invC = 1 / maxC;
+                tctx.strokeStyle = COLOR_LITE;
+                tctx.lineWidth = 1.6;
+                tctx.beginPath();
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    const idx = (traceHead + i) % TRACE_LEN;
+                    const v = colRing[idx];
+                    if (v > 0) {
+                        const x = i * stepX + stepX * 0.5;
+                        const y = halfH + (v * invC * (halfH - 4));
+                        tctx.moveTo(x, halfH);
+                        tctx.lineTo(x, y);
+                    }
+                }
+                tctx.stroke();
+
+                tctx.fillStyle = COLOR_LBL_DIM;
+                tctx.font = FONT_TINY;
+                tctx.fillText("rows ↑", 6, 12);
+                tctx.fillText("cols ↓", 6, h - 4);
+            }
+
+            traceRaf = requestAnimationFrame(drawTrace03);
+
+            sRh.addEventListener("input", () => {
+                cfgRh = parseInt(sRh.value, 10);
+                applyScene03();
+            });
+            sCw.addEventListener("input", () => {
+                cfgCw = parseInt(sCw.value, 10);
+                applyScene03();
+            });
+
+            let autoRaf = 0;
+            btnAuto.addEventListener("click", () => {
+                if (autoRaf) {
+                    cancelAnimationFrame(autoRaf);
+                    autoRaf = 0;
+                    btnAuto.classList.remove("active");
+                } else {
+                    btnAuto.classList.add("active");
+                    let fy = host.scrollTop, fx = host.scrollLeft;
+                    let vy = 0.7, vx = 0.4;
+
+                    function tick() {
+                        autoRaf = requestAnimationFrame(tick);
+                        fy += vy * (1 + Math.sin(performance.now() / 1300) * 2);
+                        fx += vx * (1 + Math.cos(performance.now() / 1100) * 1.5);
+                        const maxY = host.scrollHeight - host.clientHeight;
+                        const maxX = host.scrollWidth - host.clientWidth;
+                        if (fy < 0) {
+                            fy = 0;
+                            vy = Math.abs(vy);
+                        } else if (fy >= maxY) {
+                            fy = maxY;
+                            vy = -Math.abs(vy);
+                        }
+                        if (fx < 0) {
+                            fx = 0;
+                            vx = Math.abs(vx);
+                        } else if (fx >= maxX) {
+                            fx = maxX;
+                            vx = -Math.abs(vx);
+                        }
+                        host.scrollTop = fy;
+                        host.scrollLeft = fx;
+                    }
+
+                    tick();
+                }
+            });
+
+            return () => {
+                if (autoRaf) cancelAnimationFrame(autoRaf);
+                cancelAnimationFrame(perSecRaf);
+                cancelAnimationFrame(traceRaf);
+                if (listScope) listScope.dispose();
+                scope.dispose();
+            };
+        }
+
+        sceneStarters["03"] = startScene03;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //   SCENE 04 — vs naive
+    //
+    //   Both panels render the same 1M-item list. Left uses lite-virtual.
+    //   Right uses a hand-coded recycler that re-renders EVERY visible row
+    //   on EVERY scroll event (no cutoff, no boundary gate). Both pools are
+    //   the same size (~21 nodes) so DOM count is fair. Renders/sec is the
+    //   punchline — lite-virtual sits near zero between boundaries, naive
+    //   tracks scroll-event rate.
+    // ─────────────────────────────────────────────────────────────────────────
+    {
+        function startScene04() {
+            const scope = makeScope();
+            const vHost = document.getElementById("scene04-host-virt");
+            const nHost = document.getElementById("scene04-host-naive");
+            const trace = document.getElementById("scene04-trace");
+            const tctx = trace.getContext("2d");
+
+            const btnAuto = document.getElementById("s04-autoscroll");
+            const btnSync = document.getElementById("s04-sync");
+            const elVnodes = document.getElementById("s04-virt-nodes");
+            const elVrps = document.getElementById("s04-virt-rps");
+            const elNnodes = document.getElementById("s04-naive-nodes");
+            const elNrps = document.getElementById("s04-naive-rps");
+            const elEps = document.getElementById("s04-eps");
+            const elRatio = document.getElementById("s04-ratio");
+
+            const COUNT = 1_000_000;
+            const ITEM = 32;
+
+            // ─── LITE-VIRTUAL (left) ────────────────────────────────────────
+            let vRenders = 0, vRendersSec = 0;
+            const vScope = makeScope();
+            vHost.innerHTML = "";
+            mountList(vHost, vScope, {
+                count: COUNT, itemHeight: ITEM,
+                viewport: vHost.clientHeight || 400,
+                overscan: 3,
+                render: (rowEl, i) => {
+                    rowEl.className = (i % 2 === 0) ? "row" : "row alt";
+                    rowEl.style.height = ITEM + "px";
+                    rowEl.style.padding = "0 14px";
+
+                    if (!rowEl.__cached) {
+                        rowEl.innerHTML = `<span class="idx"></span><span class="body"></span>`;
+                        rowEl.__cached = {idx: rowEl.firstChild, body: rowEl.lastChild};
+                    }
+                    rowEl.__cached.idx.textContent = "#" + i.toString().padStart(7, "0");
+                    rowEl.__cached.body.textContent = "row " + i;
+
+                    vRenders++;
+                    vRendersSec++;
                 },
             });
-            // Hook row/col-start subscribers to count crossings.
-            listScope.effect(() => {
-                const rs = gridRef.rowStart();
-                if (lastRowStart !== -1 && rs !== lastRowStart) { rowCrossings++; rowCrossSec++; }
-                lastRowStart = rs;
-            });
-            listScope.effect(() => {
-                const cs = gridRef.colStart();
-                if (lastColStart !== -1 && cs !== lastColStart) { colCrossings++; colCrossSec++; }
-                lastColStart = cs;
-            });
-            setText(elRhV, cfgRh + "");
-            setText(elCwV, cfgCw + "");
-        }
-        applyScene03();
 
-        scope.on(host, "scroll", () => { scrollCount++; scrollSec++; }, { passive: true });
+            // ─── NAIVE (right) — hand-coded recycler, no cutoff ─────────────
+            // Same DOM strategy (absolute-positioned rows in a pool) but the
+            // bind effect re-renders EVERY visible row on EVERY scroll event.
+            // This is what most blog-post "virtual scrollers" look like.
+            let nRenders = 0, nRendersSec = 0;
+            nHost.innerHTML = "";
+            nHost.style.overflow = "auto";
+            nHost.style.position = "relative";
+            if (nHost.tabIndex < 0) nHost.tabIndex = 0;
+            // Absolute spacer — same layout-invariant pattern as the library
+            // uses. The "naive" part is what runs per scroll, not the spacer.
+            const nSpacer = document.createElement("div");
+            nSpacer.style.position = "absolute";
+            nSpacer.style.top = "0";
+            nSpacer.style.left = "0";
+            nSpacer.style.width = "1px";
+            nSpacer.style.visibility = "hidden";
+            nSpacer.style.height = (COUNT * ITEM) + "px";
+            nSpacer.setAttribute("aria-hidden", "true");
+            nHost.appendChild(nSpacer);
 
-        const TRACE_LEN = 240;
-        const rowRing = new Float64Array(TRACE_LEN);
-        const colRing = new Float64Array(TRACE_LEN);
-        const renRing = new Float64Array(TRACE_LEN);
-        let traceHead = 0;
-        let lastFrameRow = 0, lastFrameCol = 0, lastFrameRen = 0;
+            // Pool grows when the viewport resizes. We start with a defensive
+            // floor (covers any reasonable laptop screen) and let RO grow it.
+            const nPool = [];
+            let nPoolSize = 0;
 
-        let perSecRaf = 0;
-        let lastSec = performance.now();
-        let lastRps = -1, lastCps = -1, lastEps = -1, lastSps = -1, lastPool = -1;
-        let lastActiveLocal = -1;
-        function perSecTick03() {
-            perSecRaf = requestAnimationFrame(perSecTick03);
-            const now = performance.now();
-            if (now - lastSec >= 1000) {
-                const dt = now - lastSec;
-                const rps = Math.round((rowCrossSec * 1000) / dt);
-                const cps = Math.round((colCrossSec * 1000) / dt);
-                const eps = Math.round((cellRenderSec * 1000) / dt);
-                const sps = Math.round((scrollSec * 1000) / dt);
-                if (rps !== lastRps) { lastRps = rps; setText(elRps, fmtInt(rps)); }
-                if (cps !== lastCps) { lastCps = cps; setText(elCps, fmtInt(cps)); }
-                if (eps !== lastEps) { lastEps = eps; setText(elEps, fmtInt(eps)); }
-                if (sps !== lastSps) { lastSps = sps; setText(elSps, fmtInt(sps)); }
-                rowCrossSec = 0; colCrossSec = 0; cellRenderSec = 0; scrollSec = 0;
-                lastSec = now;
+            function ensureNPool(viewportH) {
+                const need = Math.ceil(viewportH / ITEM) + 1 + 2 * 3;        // overscan=3
+                if (need <= nPoolSize) return;
+                for (let i = nPoolSize; i < need; i++) {
+                    const r = document.createElement("div");
+                    r.style.position = "absolute";
+                    r.style.left = "0";
+                    r.style.right = "0";
+                    r.style.height = ITEM + "px";
+                    nHost.appendChild(r);
+                    nPool.push(r);
+                }
+                nPoolSize = need;
             }
-            const pool = host.children.length - 1;
-            if (pool !== lastPool) { lastPool = pool; setText(elPool, fmtInt(pool)); }
-            if (gridRef) {
-                const rs = gridRef.rowStart.peek(), re = gridRef.rowEnd.peek();
-                const cs = gridRef.colStart.peek(), ce = gridRef.colEnd.peek();
-                setText(elRr, rs + " · " + re);
-                setText(elCr, cs + " · " + ce);
-            }
-            // State-driven sync (review #2)
-            if (telState.active !== lastActiveLocal) {
-                lastActiveLocal = telState.active;
-                setText(elActive, fmtInt(telState.active));
-            }
-        }
-        perSecRaf = requestAnimationFrame(perSecTick03);
 
-        let traceRaf = 0;
-        function drawTrace03() {
-            traceRaf = requestAnimationFrame(drawTrace03);
-            const dR = rowCrossings - lastFrameRow;
-            const dC = colCrossings - lastFrameCol;
-            const dE = cellRenders - lastFrameRen;
-            lastFrameRow = rowCrossings;
-            lastFrameCol = colCrossings;
-            lastFrameRen = cellRenders;
-            rowRing[traceHead] = dR;
-            colRing[traceHead] = dC;
-            renRing[traceHead] = dE;
-            traceHead = (traceHead + 1) % TRACE_LEN;
+            // Seed pool with a sane default before layout settles.
+            ensureNPool(nHost.clientHeight || 400);
 
-            const w = trace.clientWidth, h = trace.clientHeight;
-            if (trace.width !== (w * devicePixelRatio) | 0) {
-                trace.width = (w * devicePixelRatio) | 0;
-                trace.height = (h * devicePixelRatio) | 0;
-                tctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-            }
-            tctx.fillStyle = COLOR_BG;
-            tctx.fillRect(0, 0, w, h);
-
-            let maxR = 2, maxC = 2, maxE = 4;
-            for (let i = 0; i < TRACE_LEN; i++) {
-                if (rowRing[i] > maxR) maxR = rowRing[i];
-                if (colRing[i] > maxC) maxC = colRing[i];
-                if (renRing[i] > maxE) maxE = renRing[i];
-            }
-            const stepX = w / TRACE_LEN;
-            const halfH = h * 0.5;
-
-            // mid divider
-            tctx.strokeStyle = COLOR_AXIS;
-            tctx.beginPath();
-            tctx.moveTo(0, halfH); tctx.lineTo(w, halfH);
-            tctx.stroke();
-
-            // Render line (background): full height
-            const invE = 1 / maxE;
-            tctx.strokeStyle = COLOR_CYAN; tctx.globalAlpha = 0.4; tctx.lineWidth = 1;
-            tctx.beginPath();
-            for (let i = 0; i < TRACE_LEN; i++) {
-                const idx = (traceHead + i) % TRACE_LEN;
-                const x = i * stepX;
-                const y = h - (renRing[idx] * invE * (h - 8)) - 4;
-                if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
-            }
-            tctx.stroke();
-            tctx.globalAlpha = 1;
-
-            // Row crossings — upper half (downward bars from mid)
-            const invR = 1 / maxR;
-            tctx.strokeStyle = COLOR_MAGENTA; tctx.lineWidth = 1.6;
-            tctx.beginPath();
-            for (let i = 0; i < TRACE_LEN; i++) {
-                const idx = (traceHead + i) % TRACE_LEN;
-                const v = rowRing[idx];
-                if (v > 0) {
-                    const x = i * stepX + stepX * 0.5;
-                    const y = halfH - (v * invR * (halfH - 4));
-                    tctx.moveTo(x, halfH);
-                    tctx.lineTo(x, y);
+            function naiveRender() {
+                // Every scroll: re-render every visible row. No idx caching,
+                // no diff guard, no Object.is cutoff. This is what we're
+                // comparing against.
+                const firstItem = Math.max(0, (nHost.scrollTop / ITEM) | 0);
+                const start = Math.max(0, firstItem - 3);
+                for (let i = 0; i < nPoolSize; i++) {
+                    const idx = start + i;
+                    if (idx < 0 || idx >= COUNT) {
+                        nPool[i].style.display = "none";
+                        continue;
+                    }
+                    const el = nPool[i];
+                    el.style.display = "";
+                    el.style.transform = `translateY(${idx * ITEM}px)`;
+                    el.className = (idx % 2 === 0) ? "row" : "row alt";
+                    el.innerHTML = `<span class="idx">#${idx.toString().padStart(7, "0")}</span><span class="body">row ${idx}</span>`;
+                    nRenders++;
+                    nRendersSec++;
                 }
             }
-            tctx.stroke();
 
-            // Col crossings — lower half
-            const invC = 1 / maxC;
-            tctx.strokeStyle = COLOR_LITE; tctx.lineWidth = 1.6;
-            tctx.beginPath();
-            for (let i = 0; i < TRACE_LEN; i++) {
-                const idx = (traceHead + i) % TRACE_LEN;
-                const v = colRing[idx];
-                if (v > 0) {
-                    const x = i * stepX + stepX * 0.5;
-                    const y = halfH + (v * invC * (halfH - 4));
-                    tctx.moveTo(x, halfH);
-                    tctx.lineTo(x, y);
+            // Resize observer: when layout settles after mount (or on real
+            // resize), grow the pool to fit and re-render.
+            if (typeof ResizeObserver !== "undefined") {
+                const nRo = new ResizeObserver((entries) => {
+                    ensureNPool(entries[0].contentRect.height);
+                    naiveRender();
+                });
+                nRo.observe(nHost);
+                scope.onCleanup(() => nRo.disconnect());
+            }
+            // Initial render. RO will fire shortly after and grow the pool /
+            // re-render if the actual viewport is bigger than our seed guess.
+            naiveRender();
+            scope.on(nHost, "scroll", naiveRender, {passive: true});
+
+            // Shared scroll counter
+            let scrolls = 0, scrollsSec = 0;
+            scope.on(vHost, "scroll", () => {
+                scrolls++;
+                scrollsSec++;
+            }, {passive: true});
+            scope.on(nHost, "scroll", () => {
+                scrolls++;
+                scrollsSec++;
+            }, {passive: true});
+
+            const TRACE_LEN = 240;
+            const vRing = new Float64Array(TRACE_LEN);
+            const nRing = new Float64Array(TRACE_LEN);
+            let traceHead = 0;
+            let lastFrameV = 0, lastFrameN = 0;
+
+            let perSecRaf = 0;
+            let lastSec = performance.now();
+            let lastVrps = -1, lastNrps = -1, lastEps = -1, lastVnodes = -1, lastNnodes = -1, lastRatio = -1;
+
+            function perSecTick04() {
+                perSecRaf = requestAnimationFrame(perSecTick04);
+                const now = performance.now();
+                if (now - lastSec >= 1000) {
+                    const dt = now - lastSec;
+                    const vrps = Math.round((vRendersSec * 1000) / dt);
+                    const nrps = Math.round((nRendersSec * 1000) / dt);
+                    const eps = Math.round((scrollsSec * 1000) / dt);
+                    if (vrps !== lastVrps) {
+                        lastVrps = vrps;
+                        setText(elVrps, fmtInt(vrps));
+                    }
+                    if (nrps !== lastNrps) {
+                        lastNrps = nrps;
+                        setText(elNrps, fmtInt(nrps));
+                    }
+                    if (eps !== lastEps) {
+                        lastEps = eps;
+                        setText(elEps, fmtInt(eps));
+                    }
+                    const ratio = vrps === 0 ? 0 : (nrps / vrps);
+                    const r10 = Math.round(ratio * 10);
+                    if (r10 !== lastRatio) {
+                        lastRatio = r10;
+                        setText(elRatio, vrps === 0 ? "—" : (ratio.toFixed(1) + "×"));
+                    }
+                    vRendersSec = 0;
+                    nRendersSec = 0;
+                    scrollsSec = 0;
+                    lastSec = now;
+                }
+                const vn = vHost.children.length - 1;
+                const nn = nHost.children.length - 1;
+                if (vn !== lastVnodes) {
+                    lastVnodes = vn;
+                    setText(elVnodes, fmtInt(vn));
+                }
+                if (nn !== lastNnodes) {
+                    lastNnodes = nn;
+                    setText(elNnodes, fmtInt(nn));
                 }
             }
-            tctx.stroke();
 
-            tctx.fillStyle = COLOR_LBL_DIM;
-            tctx.font = FONT_TINY;
-            tctx.fillText("rows ↑", 6, 12);
-            tctx.fillText("cols ↓", 6, h - 4);
-        }
-        traceRaf = requestAnimationFrame(drawTrace03);
-
-        sRh.addEventListener("input", () => { cfgRh = parseInt(sRh.value, 10); applyScene03(); });
-        sCw.addEventListener("input", () => { cfgCw = parseInt(sCw.value, 10); applyScene03(); });
-
-        let autoRaf = 0;
-        btnAuto.addEventListener("click", () => {
-            if (autoRaf) {
-                cancelAnimationFrame(autoRaf); autoRaf = 0;
-                btnAuto.classList.remove("active");
-            } else {
-                btnAuto.classList.add("active");
-                let fy = host.scrollTop, fx = host.scrollLeft;
-                let vy = 0.7, vx = 0.4;
-                function tick() {
-                    autoRaf = requestAnimationFrame(tick);
-                    fy += vy * (1 + Math.sin(performance.now() / 1300) * 2);
-                    fx += vx * (1 + Math.cos(performance.now() / 1100) * 1.5);
-                    const maxY = host.scrollHeight - host.clientHeight;
-                    const maxX = host.scrollWidth - host.clientWidth;
-                    if (fy < 0) { fy = 0; vy = Math.abs(vy); }
-                    else if (fy >= maxY) { fy = maxY; vy = -Math.abs(vy); }
-                    if (fx < 0) { fx = 0; vx = Math.abs(vx); }
-                    else if (fx >= maxX) { fx = maxX; vx = -Math.abs(vx); }
-                    host.scrollTop = fy;
-                    host.scrollLeft = fx;
-                }
-                tick();
-            }
-        });
-
-        return () => {
-            if (autoRaf) cancelAnimationFrame(autoRaf);
-            cancelAnimationFrame(perSecRaf);
-            cancelAnimationFrame(traceRaf);
-            if (listScope) listScope.dispose();
-            scope.dispose();
-        };
-    }
-
-    sceneStarters["03"] = startScene03;
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-//   SCENE 04 — vs naive
-//
-//   Both panels render the same 1M-item list. Left uses lite-virtual.
-//   Right uses a hand-coded recycler that re-renders EVERY visible row
-//   on EVERY scroll event (no cutoff, no boundary gate). Both pools are
-//   the same size (~21 nodes) so DOM count is fair. Renders/sec is the
-//   punchline — lite-virtual sits near zero between boundaries, naive
-//   tracks scroll-event rate.
-// ─────────────────────────────────────────────────────────────────────────
-{
-    function startScene04() {
-        const scope = makeScope();
-        const vHost = document.getElementById("scene04-host-virt");
-        const nHost = document.getElementById("scene04-host-naive");
-        const trace = document.getElementById("scene04-trace");
-        const tctx = trace.getContext("2d");
-
-        const btnAuto = document.getElementById("s04-autoscroll");
-        const btnSync = document.getElementById("s04-sync");
-        const elVnodes = document.getElementById("s04-virt-nodes");
-        const elVrps   = document.getElementById("s04-virt-rps");
-        const elNnodes = document.getElementById("s04-naive-nodes");
-        const elNrps   = document.getElementById("s04-naive-rps");
-        const elEps    = document.getElementById("s04-eps");
-        const elRatio  = document.getElementById("s04-ratio");
-
-        const COUNT = 1_000_000;
-        const ITEM = 32;
-
-        // ─── LITE-VIRTUAL (left) ────────────────────────────────────────
-        let vRenders = 0, vRendersSec = 0;
-        const vScope = makeScope();
-        vHost.innerHTML = "";
-        mountList(vHost, vScope, {
-            count: COUNT, itemHeight: ITEM,
-            viewport: vHost.clientHeight || 400,
-            overscan: 3,
-            render: (rowEl, i) => {
-                rowEl.className = (i % 2 === 0) ? "row" : "row alt";
-                rowEl.style.height = ITEM + "px";
-                rowEl.style.padding = "0 14px";
-
-                if (!rowEl.__cached) {
-                    rowEl.innerHTML = `<span class="idx"></span><span class="body"></span>`;
-                    rowEl.__cached = { idx: rowEl.firstChild, body: rowEl.lastChild };
-                }
-                rowEl.__cached.idx.textContent = "#" + i.toString().padStart(7, "0");
-                rowEl.__cached.body.textContent = "row " + i;
-
-                vRenders++; vRendersSec++;
-            },
-        });
-
-        // ─── NAIVE (right) — hand-coded recycler, no cutoff ─────────────
-        // Same DOM strategy (absolute-positioned rows in a pool) but the
-        // bind effect re-renders EVERY visible row on EVERY scroll event.
-        // This is what most blog-post "virtual scrollers" look like.
-        let nRenders = 0, nRendersSec = 0;
-        nHost.innerHTML = "";
-        nHost.style.overflow = "auto";
-        nHost.style.position = "relative";
-        if (nHost.tabIndex < 0) nHost.tabIndex = 0;
-        // Absolute spacer — same layout-invariant pattern as the library
-        // uses. The "naive" part is what runs per scroll, not the spacer.
-        const nSpacer = document.createElement("div");
-        nSpacer.style.position = "absolute";
-        nSpacer.style.top = "0";
-        nSpacer.style.left = "0";
-        nSpacer.style.width = "1px";
-        nSpacer.style.visibility = "hidden";
-        nSpacer.style.height = (COUNT * ITEM) + "px";
-        nSpacer.setAttribute("aria-hidden", "true");
-        nHost.appendChild(nSpacer);
-
-        // Pool grows when the viewport resizes. We start with a defensive
-        // floor (covers any reasonable laptop screen) and let RO grow it.
-        const nPool = [];
-        let nPoolSize = 0;
-        function ensureNPool(viewportH) {
-            const need = Math.ceil(viewportH / ITEM) + 1 + 2 * 3;        // overscan=3
-            if (need <= nPoolSize) return;
-            for (let i = nPoolSize; i < need; i++) {
-                const r = document.createElement("div");
-                r.style.position = "absolute";
-                r.style.left = "0";
-                r.style.right = "0";
-                r.style.height = ITEM + "px";
-                nHost.appendChild(r);
-                nPool.push(r);
-            }
-            nPoolSize = need;
-        }
-        // Seed pool with a sane default before layout settles.
-        ensureNPool(nHost.clientHeight || 400);
-
-        function naiveRender() {
-            // Every scroll: re-render every visible row. No idx caching,
-            // no diff guard, no Object.is cutoff. This is what we're
-            // comparing against.
-            const firstItem = Math.max(0, (nHost.scrollTop / ITEM) | 0);
-            const start = Math.max(0, firstItem - 3);
-            for (let i = 0; i < nPoolSize; i++) {
-                const idx = start + i;
-                if (idx < 0 || idx >= COUNT) { nPool[i].style.display = "none"; continue; }
-                const el = nPool[i];
-                el.style.display = "";
-                el.style.transform = `translateY(${idx * ITEM}px)`;
-                el.className = (idx % 2 === 0) ? "row" : "row alt";
-                el.innerHTML = `<span class="idx">#${idx.toString().padStart(7, "0")}</span><span class="body">row ${idx}</span>`;
-                nRenders++; nRendersSec++;
-            }
-        }
-        // Resize observer: when layout settles after mount (or on real
-        // resize), grow the pool to fit and re-render.
-        if (typeof ResizeObserver !== "undefined") {
-            const nRo = new ResizeObserver((entries) => {
-                ensureNPool(entries[0].contentRect.height);
-                naiveRender();
-            });
-            nRo.observe(nHost);
-            scope.onCleanup(() => nRo.disconnect());
-        }
-        // Initial render. RO will fire shortly after and grow the pool /
-        // re-render if the actual viewport is bigger than our seed guess.
-        naiveRender();
-        scope.on(nHost, "scroll", naiveRender, { passive: true });
-
-        // Shared scroll counter
-        let scrolls = 0, scrollsSec = 0;
-        scope.on(vHost, "scroll", () => { scrolls++; scrollsSec++; }, { passive: true });
-        scope.on(nHost, "scroll", () => { scrolls++; scrollsSec++; }, { passive: true });
-
-        const TRACE_LEN = 240;
-        const vRing = new Float64Array(TRACE_LEN);
-        const nRing = new Float64Array(TRACE_LEN);
-        let traceHead = 0;
-        let lastFrameV = 0, lastFrameN = 0;
-
-        let perSecRaf = 0;
-        let lastSec = performance.now();
-        let lastVrps = -1, lastNrps = -1, lastEps = -1, lastVnodes = -1, lastNnodes = -1, lastRatio = -1;
-        function perSecTick04() {
             perSecRaf = requestAnimationFrame(perSecTick04);
-            const now = performance.now();
-            if (now - lastSec >= 1000) {
-                const dt = now - lastSec;
-                const vrps = Math.round((vRendersSec * 1000) / dt);
-                const nrps = Math.round((nRendersSec * 1000) / dt);
-                const eps = Math.round((scrollsSec * 1000) / dt);
-                if (vrps !== lastVrps) { lastVrps = vrps; setText(elVrps, fmtInt(vrps)); }
-                if (nrps !== lastNrps) { lastNrps = nrps; setText(elNrps, fmtInt(nrps)); }
-                if (eps !== lastEps) { lastEps = eps; setText(elEps, fmtInt(eps)); }
-                const ratio = vrps === 0 ? 0 : (nrps / vrps);
-                const r10 = Math.round(ratio * 10);
-                if (r10 !== lastRatio) {
-                    lastRatio = r10;
-                    setText(elRatio, vrps === 0 ? "—" : (ratio.toFixed(1) + "×"));
-                }
-                vRendersSec = 0; nRendersSec = 0; scrollsSec = 0;
-                lastSec = now;
-            }
-            const vn = vHost.children.length - 1;
-            const nn = nHost.children.length - 1;
-            if (vn !== lastVnodes) { lastVnodes = vn; setText(elVnodes, fmtInt(vn)); }
-            if (nn !== lastNnodes) { lastNnodes = nn; setText(elNnodes, fmtInt(nn)); }
-        }
-        perSecRaf = requestAnimationFrame(perSecTick04);
 
-        let traceRaf = 0;
-        function drawTrace04() {
+            let traceRaf = 0;
+
+            function drawTrace04() {
+                traceRaf = requestAnimationFrame(drawTrace04);
+                const dV = vRenders - lastFrameV;
+                const dN = nRenders - lastFrameN;
+                lastFrameV = vRenders;
+                lastFrameN = nRenders;
+                vRing[traceHead] = dV;
+                nRing[traceHead] = dN;
+                traceHead = (traceHead + 1) % TRACE_LEN;
+
+                const w = trace.clientWidth, h = trace.clientHeight;
+                if (trace.width !== (w * devicePixelRatio) | 0) {
+                    trace.width = (w * devicePixelRatio) | 0;
+                    trace.height = (h * devicePixelRatio) | 0;
+                    tctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+                }
+                tctx.fillStyle = COLOR_BG;
+                tctx.fillRect(0, 0, w, h);
+
+                let maxV = 4;
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    if (vRing[i] > maxV) maxV = vRing[i];
+                    if (nRing[i] > maxV) maxV = nRing[i];
+                }
+                const invMax = 1 / maxV;
+                const stepX = w / TRACE_LEN;
+
+                tctx.strokeStyle = COLOR_GRID;
+                tctx.lineWidth = 1;
+                tctx.beginPath();
+                for (let g = 1; g < 4; g++) {
+                    const y = (h * g) >> 2;
+                    tctx.moveTo(0, y);
+                    tctx.lineTo(w, y);
+                }
+                tctx.stroke();
+
+                // Naive (amber, behind, AREA filled so it's visceral)
+                tctx.fillStyle = "rgba(245, 185, 66, 0.18)";
+                tctx.strokeStyle = COLOR_AMBER;
+                tctx.lineWidth = 1.4;
+                tctx.beginPath();
+                tctx.moveTo(0, h);
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    const idx = (traceHead + i) % TRACE_LEN;
+                    const x = i * stepX;
+                    const y = h - (nRing[idx] * invMax * (h - 8)) - 4;
+                    tctx.lineTo(x, y);
+                }
+                tctx.lineTo(w, h);
+                tctx.closePath();
+                tctx.fill();
+                tctx.beginPath();
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    const idx = (traceHead + i) % TRACE_LEN;
+                    const x = i * stepX;
+                    const y = h - (nRing[idx] * invMax * (h - 8)) - 4;
+                    if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
+                }
+                tctx.stroke();
+
+                // Virtual (lite, in front)
+                tctx.strokeStyle = COLOR_LITE;
+                tctx.lineWidth = 1.8;
+                tctx.beginPath();
+                for (let i = 0; i < TRACE_LEN; i++) {
+                    const idx = (traceHead + i) % TRACE_LEN;
+                    const x = i * stepX;
+                    const y = h - (vRing[idx] * invMax * (h - 8)) - 4;
+                    if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
+                }
+                tctx.stroke();
+
+                tctx.fillStyle = COLOR_LBL_DIM;
+                tctx.font = FONT_TINY;
+                tctx.fillText("renders/frame (peak: " + Math.round(maxV) + ")", 6, 12);
+            }
+
             traceRaf = requestAnimationFrame(drawTrace04);
-            const dV = vRenders - lastFrameV;
-            const dN = nRenders - lastFrameN;
-            lastFrameV = vRenders;
-            lastFrameN = nRenders;
-            vRing[traceHead] = dV;
-            nRing[traceHead] = dN;
-            traceHead = (traceHead + 1) % TRACE_LEN;
 
-            const w = trace.clientWidth, h = trace.clientHeight;
-            if (trace.width !== (w * devicePixelRatio) | 0) {
-                trace.width = (w * devicePixelRatio) | 0;
-                trace.height = (h * devicePixelRatio) | 0;
-                tctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-            }
-            tctx.fillStyle = COLOR_BG;
-            tctx.fillRect(0, 0, w, h);
+            let autoRaf = 0;
+            btnAuto.addEventListener("click", () => {
+                if (autoRaf) {
+                    cancelAnimationFrame(autoRaf);
+                    autoRaf = 0;
+                    btnAuto.classList.remove("active");
+                } else {
+                    btnAuto.classList.add("active");
+                    let fy = vHost.scrollTop;
+                    let v = 0.7;
+                    const max = () => vHost.scrollHeight - vHost.clientHeight;
 
-            let maxV = 4;
-            for (let i = 0; i < TRACE_LEN; i++) {
-                if (vRing[i] > maxV) maxV = vRing[i];
-                if (nRing[i] > maxV) maxV = nRing[i];
-            }
-            const invMax = 1 / maxV;
-            const stepX = w / TRACE_LEN;
+                    function tick() {
+                        autoRaf = requestAnimationFrame(tick);
+                        fy += v * (1 + Math.sin(performance.now() / 1400) * 2.5);
+                        if (fy < 0) {
+                            fy = 0;
+                            v = Math.abs(v);
+                        } else if (fy >= max()) {
+                            fy = max();
+                            v = -Math.abs(v);
+                        }
+                        vHost.scrollTop = fy;
+                        nHost.scrollTop = fy;
+                    }
 
-            tctx.strokeStyle = COLOR_GRID;
-            tctx.lineWidth = 1;
-            tctx.beginPath();
-            for (let g = 1; g < 4; g++) {
-                const y = (h * g) >> 2;
-                tctx.moveTo(0, y); tctx.lineTo(w, y);
-            }
-            tctx.stroke();
-
-            // Naive (amber, behind, AREA filled so it's visceral)
-            tctx.fillStyle = "rgba(245, 185, 66, 0.18)";
-            tctx.strokeStyle = COLOR_AMBER;
-            tctx.lineWidth = 1.4;
-            tctx.beginPath();
-            tctx.moveTo(0, h);
-            for (let i = 0; i < TRACE_LEN; i++) {
-                const idx = (traceHead + i) % TRACE_LEN;
-                const x = i * stepX;
-                const y = h - (nRing[idx] * invMax * (h - 8)) - 4;
-                tctx.lineTo(x, y);
-            }
-            tctx.lineTo(w, h);
-            tctx.closePath();
-            tctx.fill();
-            tctx.beginPath();
-            for (let i = 0; i < TRACE_LEN; i++) {
-                const idx = (traceHead + i) % TRACE_LEN;
-                const x = i * stepX;
-                const y = h - (nRing[idx] * invMax * (h - 8)) - 4;
-                if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
-            }
-            tctx.stroke();
-
-            // Virtual (lite, in front)
-            tctx.strokeStyle = COLOR_LITE;
-            tctx.lineWidth = 1.8;
-            tctx.beginPath();
-            for (let i = 0; i < TRACE_LEN; i++) {
-                const idx = (traceHead + i) % TRACE_LEN;
-                const x = i * stepX;
-                const y = h - (vRing[idx] * invMax * (h - 8)) - 4;
-                if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
-            }
-            tctx.stroke();
-
-            tctx.fillStyle = COLOR_LBL_DIM;
-            tctx.font = FONT_TINY;
-            tctx.fillText("renders/frame (peak: " + Math.round(maxV) + ")", 6, 12);
-        }
-        traceRaf = requestAnimationFrame(drawTrace04);
-
-        let autoRaf = 0;
-        btnAuto.addEventListener("click", () => {
-            if (autoRaf) {
-                cancelAnimationFrame(autoRaf); autoRaf = 0;
-                btnAuto.classList.remove("active");
-            } else {
-                btnAuto.classList.add("active");
-                let fy = vHost.scrollTop;
-                let v = 0.7;
-                const max = () => vHost.scrollHeight - vHost.clientHeight;
-                function tick() {
-                    autoRaf = requestAnimationFrame(tick);
-                    fy += v * (1 + Math.sin(performance.now() / 1400) * 2.5);
-                    if (fy < 0) { fy = 0; v = Math.abs(v); }
-                    else if (fy >= max()) { fy = max(); v = -Math.abs(v); }
-                    vHost.scrollTop = fy;
-                    nHost.scrollTop = fy;
+                    tick();
                 }
-                tick();
-            }
-        });
-        btnSync.addEventListener("click", () => {
-            nHost.scrollTop = vHost.scrollTop;
-        });
+            });
+            btnSync.addEventListener("click", () => {
+                nHost.scrollTop = vHost.scrollTop;
+            });
 
-        return () => {
-            if (autoRaf) cancelAnimationFrame(autoRaf);
-            cancelAnimationFrame(perSecRaf);
-            cancelAnimationFrame(traceRaf);
-            vScope.dispose();
-            scope.dispose();
-        };
+            return () => {
+                if (autoRaf) cancelAnimationFrame(autoRaf);
+                cancelAnimationFrame(perSecRaf);
+                cancelAnimationFrame(traceRaf);
+                vScope.dispose();
+                scope.dispose();
+            };
+        }
+
+        sceneStarters["04"] = startScene04;
     }
 
-    sceneStarters["04"] = startScene04;
-}
+    // ─────────────────────────────────────────────────────────────────────────
+    //   Boot
+    // ─────────────────────────────────────────────────────────────────────────
+    for (const btn of document.querySelectorAll("nav.tabs button")) {
+        btn.addEventListener("click", () => switchScene(btn.dataset.scene));
+    }
 
-// ─────────────────────────────────────────────────────────────────────────
-//   Boot
-// ─────────────────────────────────────────────────────────────────────────
-for (const btn of document.querySelectorAll("nav.tabs button")) {
-    btn.addEventListener("click", () => switchScene(btn.dataset.scene));
-}
+    // Global rAF for telemetry — runs forever, independent of scene.
+    function globalLoop(now) {
+        telemetryTick(now);
+        requestAnimationFrame(globalLoop);
+    }
 
-// Global rAF for telemetry — runs forever, independent of scene.
-function globalLoop(now) {
-    telemetryTick(now);
     requestAnimationFrame(globalLoop);
-}
-requestAnimationFrame(globalLoop);
 
-switchScene("01");
+    switchScene("01");
 </script>
 </body>
 </html>

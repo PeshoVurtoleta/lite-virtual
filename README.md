@@ -37,7 +37,7 @@ mount(document.getElementById("box"), (host, scope) => {
 A `mountList` with 1,000,000 items keeps ~21 DOM nodes alive.
 ~800K full scroll events/sec on a 1M-item list. Scrolling within
 one row writes literally nothing to the DOM and allocates literally
-zero bytes — verified by the test suite, not by hope.
+zero bytes -- verified by the test suite, not by hope.
 
 ---
 
@@ -67,42 +67,43 @@ zero bytes — verified by the test suite, not by hope.
 A small set of design constraints picked deliberately:
 
 - **Boundary-only updates.** The visible range derives from
-  `Math.floor(scrollTop / itemSize)` — an integer. lite-signal's
+  `Math.floor(scrollTop / itemSize)` -- an integer. lite-signal's
   `Object.is` cutoff means that integer only changes when you actually
   cross a row boundary. A fast 1-pixel scroll inside one row produces
   ZERO reactive work, ZERO DOM writes, ZERO bytes allocated. The whole
-  chain — start, end, offsetStart, totalSize, your bind effects — sits
+  chain -- start, end, offsetStart, totalSize, your bind effects -- sits
   idle between crossings.
 - **Bounded DOM pool.** A `mountList` of 1,000,000 items keeps ~21 DOM
   nodes alive, no matter how far you scroll. Recycling is index-based:
   on a one-row scroll, exactly one node's transform + content updates.
 - **No virtual DOM. No template compiler. No renderer.** The math
   (`virtualAxis`, `virtualGrid`, `variableAxis`) is pure reactive state
-  you can pair with any drawing primitive — DOM, canvas, WebGL, terminal
+  you can pair with any drawing primitive -- DOM, canvas, WebGL, terminal
   ANSI. The included recycling renderers are opinionated, ~1 KB each,
   and use lite-element's scope.
 - **Observer-safe by design.** Each renderer sets `host.style.overflow =
   "auto"`, so the giant inner spacer scrolls INSIDE the host and never
   inflates the host's reported size to outer observers (IntersectionObserver,
   parent ResizeObserver, flex containers). The library's own RO reads
-  `contentRect.height` — never `scrollHeight` — so no feedback loop is
+  `contentRect.height` -- never `scrollHeight` -- so no feedback loop is
   reachable.
 - **Two layers, separated.** Pure math axes (1 KB) are useful on their own.
   Recycling renderers (3 KB total) layer on top. Use what you need, skip
   what you don't.
 
 If you want a framework integration with hooks, a `<VirtualList>` component,
-SSR helpers, snap-to-row, or sticky headers — this is the wrong library.
-Seven functions, one peer dep, ~4 KB minified.
+or SSR helpers -- this is the wrong library. (Sticky headers and infinite
+loading are covered headlessly by `stickyHeader` / `onEndReached`.) Eleven
+functions, one peer dep, no runtime deps.
 
 ---
 
 ## What you get
 
 ```js
-// Pure math — pair with any renderer:
+// Pure math -- pair with any renderer:
 const axis = virtualAxis({ count, itemSize, viewport, overscan });
-axis.start();       // reactive integer — only changes on boundary cross
+axis.start();       // reactive integer -- only changes on boundary cross
 axis.end();         // reactive integer
 axis.offsetStart(); // reactive px
 axis.totalSize();   // reactive px (count * itemSize)
@@ -116,13 +117,24 @@ const va = variableAxis({ count, sizeAt: i => sizes[i], viewport, overscan });
 va.positionAt(i);   // O(1) prefix-sum offset
 va.minSize();       // smallest row (for pool pre-sizing)
 va.remeasure();     // rebuild offsets from current sizeAt
+va.offsetForIndex(i, "center");  // clamped scroll-to offset (every axis)
 
-// Opinionated recycling renderers — built on lite-element's scope shape:
-mountList(host, scope, { count, itemHeight, viewport, render });
+// Auto-height: sizes unknown until rendered (Fenwick-backed, O(log n) patch):
+const ma = measuredAxis({ count, estimateSize, viewport, overscan });
+ma.measure(i, realPx);   // report a row's measured height
+
+// Opinionated recycling renderers -- built on lite-element's scope shape:
+mountList(host, scope, { count, itemHeight, viewport, render });           // + horizontal?
 mountKeyedList(host, scope, { items, itemHeight, viewport, key, render });
 mountGrid(host, scope, { rowCount, colCount, rowHeight, colWidth,
                          viewportWidth, viewportHeight, render });
 mountVariableList(host, scope, { count, sizeAt, viewport, render });
+mountMeasuredList(host, scope, { count, estimateSize, viewport, render });
+// renderers attach axis.scrollToIndex(i, align?) / grid.scrollToCell(r, c, align?)
+
+// Headless helpers:
+onEndReached(axis, { distance, onReached });        // infinite loader trigger
+stickyHeader(axis.firstIndex, groupStarts);         // active group ordinal
 ```
 
 ---
@@ -160,8 +172,8 @@ The DOM has ~21 `<div>` rows inside `<huge-list>`. Scrolling re-uses them.
 
 ## Pure-math axes
 
-For renderers that aren't a DOM list — canvas / WebGL grids, terminal UIs,
-scroll-bound parallax — use the math directly:
+For renderers that aren't a DOM list -- canvas / WebGL grids, terminal UIs,
+scroll-bound parallax -- use the math directly:
 
 ```js
 import { virtualAxis } from "@zakkster/lite-virtual";
@@ -177,12 +189,12 @@ const axis = virtualAxis({
 scrollEl.addEventListener("scroll", () => axis.setScroll(scrollEl.scrollTop));
 
 effect(() => {
-    // Runs ONLY when start or end changes — i.e. on boundary crossings.
+    // Runs ONLY when start or end changes -- i.e. on boundary crossings.
     drawCanvasWindow(ctx, axis.start(), axis.end(), axis.offsetStart());
 });
 ```
 
-The `effect` body fires once per boundary crossing — never on sub-row scrolls.
+The `effect` body fires once per boundary crossing -- never on sub-row scrolls.
 You can throttle / coalesce externally if you want fewer; the cutoff already
 ensures you never do MORE work than necessary.
 
@@ -190,7 +202,7 @@ ensures you never do MORE work than necessary.
 
 ## Recycling renderers
 
-### `mountList` — index-based, stateless rows
+### `mountList` -- index-based, stateless rows
 
 Stateless content (text, static markup, derived display strings) goes through
 `mountList`. A pool of `perView + 2 * overscan` row `<div>`s is created once;
@@ -210,12 +222,12 @@ mountList(host, scope, {
 });
 ```
 
-The recycling is INDEX-based — meaning the same `<div>` is reused across
+The recycling is INDEX-based -- meaning the same `<div>` is reused across
 different logical indices. That's why rows must be stateless: any DOM state
 on a row (input focus, video playback, accordion-expanded) would follow the
 node, not the data row, and break the moment the user scrolls.
 
-### `mountGrid` — 2-D recycling
+### `mountGrid` -- 2-D recycling
 
 ```js
 mountGrid(host, scope, {
@@ -241,8 +253,8 @@ Stateless cells (same constraint as `mountList`).
 
 ## Stateful rows: when to use `mountKeyedList`
 
-If a row owns DOM state — an `<input>` you can type into, a `<video>` that's
-playing, a `<details>` element the user expanded — you cannot recycle nodes
+If a row owns DOM state -- an `<input>` you can type into, a `<video>` that's
+playing, a `<details>` element the user expanded -- you cannot recycle nodes
 by index slot. Each node has to stay with its row's identity.
 
 `mountKeyedList` does that: a node is created when its key enters the window
@@ -272,7 +284,7 @@ mountKeyedList(host, scope, {
     },
 });
 
-// Reorder — typed text and focus survive:
+// Reorder -- typed text and focus survive:
 rows.update((arr) => [...arr].reverse());
 ```
 
@@ -286,7 +298,7 @@ window, one removal per key leaving), but correct for stateful content.
 If row heights are not uniform but you know them up front, use
 `mountVariableList`. The library builds a prefix-sum offsets array once
 (O(n)), then resolves each scroll position by binary search (O(log n)).
-The no-thrash property carries over — firstItem is still an integer, so
+The no-thrash property carries over -- firstItem is still an integer, so
 Object.is still gates downstream work.
 
 ```js
@@ -303,16 +315,31 @@ mountVariableList(host, scope, {
 ```
 
 If your sizes change later (responsive layout, font load, ResizeObserver on
-rendered rows), call `axis.remeasure()` — it walks `sizeAt` again and bumps
+rendered rows), call `axis.remeasure()` -- it walks `sizeAt` again and bumps
 an internal version signal that re-triggers the downstream chain.
 
-> **Not handled:** measured / auto-height rows whose size is unknown until
-> rendered. That needs an estimate-then-correct loop on top: render at an
-> estimated height, measure via ResizeObserver, patch the affected entries,
-> bump the version, and anchor the scroll position to the item under the
-> viewport top so the correction doesn't visibly jump. The windowing /
-> recycling above works verbatim; only the offsets source becomes
-> incremental. (Future `@zakkster/lite-virtual-measure` package.)
+### Measured / auto-height rows (1.1)
+
+When sizes are unknown until rendered, use `measuredAxis` + `mountMeasuredList`.
+Rows start at an estimate; a `ResizeObserver` reports each row's real height, and
+the axis patches every downstream offset in **O(log n)** via a Fenwick tree
+(not an O(n) rebuild). The scroll is re-anchored to the item under the viewport
+top, so a correction above the fold does not visibly jump.
+
+```js
+mountMeasuredList(host, scope, {
+    count: rows.length,
+    estimateSize: 40,                 // best guess before measurement
+    viewport: host.clientHeight,
+    render: (rowEl, i) => {
+        rowEl.textContent = rows[i].text;   // any height; it gets measured
+    },
+});
+```
+
+The windowing, recycling, and no-thrash property are identical to the other
+renderers; only the offset source is incremental. For the headless math alone
+(measure rows yourself, drive your own renderer), use `measuredAxis`.
 
 ---
 
@@ -328,109 +355,159 @@ lite-virtual breaks the loop on **two** independent fronts:
 1. **`host.style.overflow = "auto"`.** The spacer (whose `style.height` is
    the full `count * itemSize`) scrolls INSIDE the host. The host itself
    only takes the space its parent gave it. Outer `IntersectionObserver` /
-   `ResizeObserver` see `host`'s own `clientHeight` — not the inflated
-   spacer — because the host clips.
+   `ResizeObserver` see `host`'s own `clientHeight` -- not the inflated
+   spacer -- because the host clips.
 2. **The library's RO reads `contentRect.height`, never `scrollHeight`.**
    So even in the (very unusual) case that some part of layout did inflate
    the host's reported size, the renderer would only see the actual visible
    viewport, not anything the spacer can influence.
 
 This is pinned down by [test/03-observers.test.js](./test/03-observers.test.js)
-— 10 tests including the worst case (simultaneous external IO + RO + scroll
+-- 10 tests including the worst case (simultaneous external IO + RO + scroll
 across 100K items), all asserting the pool stays bounded and no feedback
 loop is reachable.
 
-The library **does not** register any `IntersectionObserver` of its own —
+The library **does not** register any `IntersectionObserver` of its own --
 only ONE `ResizeObserver` per renderer, disconnected on `scope.dispose()`.
 
 ---
 
 ## API reference
 
-### `virtualAxis(options) → VirtualAxis`
+### `virtualAxis(options) -> VirtualAxis`
 
 | option       | type     | default | notes                                         |
 |--------------|----------|---------|-----------------------------------------------|
-| `count`      | number   | —       | number of items                               |
-| `itemSize`   | number   | —       | pixel size along the scroll axis              |
-| `viewport`   | number   | —       | viewport size along the scroll axis           |
+| `count`      | number   | --       | number of items                               |
+| `itemSize`   | number   | --       | pixel size along the scroll axis              |
+| `viewport`   | number   | --       | viewport size along the scroll axis           |
 | `overscan`   | number   | 3       | extra items kept mounted on each side         |
 
-Returns reactive `scrollPos`, `start`, `end`, `offsetStart`, `totalSize`
-plus setters `setScroll`, `setViewport`, `setCount`.
+Returns reactive `scrollPos`, `start`, `end`, `offsetStart`, `totalSize`,
+`firstIndex`, `count()`, and `offsetForIndex(index, align?)` (clamped scroll
+offset; `align` is `"start" | "center" | "end" | "auto"`), plus setters
+`setScroll`, `setViewport`, `setCount`.
 
-### `virtualGrid(options) → VirtualGrid`
+### `virtualGrid(options) -> VirtualGrid`
 
 | option           | type   | default |
 |------------------|--------|---------|
-| `rowCount`       | number | —       |
-| `colCount`       | number | —       |
-| `rowHeight`      | number | —       |
-| `colWidth`       | number | —       |
-| `viewportHeight` | number | —       |
-| `viewportWidth`  | number | —       |
+| `rowCount`       | number | --       |
+| `colCount`       | number | --       |
+| `rowHeight`      | number | --       |
+| `colWidth`       | number | --       |
+| `viewportHeight` | number | --       |
+| `viewportWidth`  | number | --       |
 | `overscan`       | number | 2       |
 
 Returns `rowStart`, `rowEnd`, `rowOffset`, `totalHeight`, `colStart`,
 `colEnd`, `colOffset`, `totalWidth`, `setScroll`, `setViewport`, `setCounts`.
 
-### `variableAxis(options) → VariableAxis`
+### `variableAxis(options) -> VariableAxis`
 
 | option       | type     | default |
 |--------------|----------|---------|
-| `count`      | number   | —       |
-| `sizeAt`     | `(i) => number` | — |
-| `viewport`   | number   | —       |
+| `count`      | number   | --       |
+| `sizeAt`     | `(i) => number` | -- |
+| `viewport`   | number   | --       |
 | `overscan`   | number   | 3       |
 
-Returns the `virtualAxis` surface plus `positionAt(i)`, `minSize()`,
-`remeasure()`.
+Returns the `virtualAxis` surface (`firstIndex`, `count()`, `offsetForIndex`
+included) plus `positionAt(i)`, `minSize()`, `remeasure()`.
 
-### `mountList(host, scope, options) → VirtualAxis`
+### `mountList(host, scope, options) -> VirtualAxis`
 
 | option       | type     | default | notes                                                |
 |--------------|----------|---------|------------------------------------------------------|
-| `count`      | number   | —       |                                                      |
-| `itemHeight` | number   | —       |                                                      |
-| `viewport`   | number   | —       | initial — auto-synced via ResizeObserver if available |
+| `count`      | number   | --       |                                                      |
+| `itemHeight` | number   | --       | size along the scroll axis (or use `itemSize`)       |
+| `itemSize`   | number   | --       | alias for `itemHeight`; clearer when `horizontal`    |
+| `horizontal` | boolean  | false   | scroll on X (scrollLeft + translateX)                |
+| `viewport`   | number   | --       | initial -- auto-synced via ResizeObserver if available |
 | `overscan`   | number   | 3       |                                                      |
-| `render`     | `(rowEl, index) => void` | — | called when an index enters the window or recycles |
+| `render`     | `(rowEl, index) => void` | -- | called when an index enters the window or recycles |
 
-Returns the axis (use it for `setCount` on growth, etc).
+Returns the axis (use it for `setCount` on growth, etc), with
+`scrollToIndex(index, align?)` attached.
 
-### `mountKeyedList<T>(host, scope, options) → VirtualAxis`
+### `mountKeyedList<T>(host, scope, options) -> VirtualAxis`
 
 | option       | type     | default |
 |--------------|----------|---------|
-| `items`      | `() => readonly T[]` | — |
-| `itemHeight` | number   | —       |
-| `viewport`   | number   | —       |
+| `items`      | `() => readonly T[]` | -- |
+| `itemHeight` | number   | --       |
+| `viewport`   | number   | --       |
 | `overscan`   | number   | 3       |
-| `key`        | `(item, index) => string \| number` | — |
-| `render`     | `(rowEl, item, index) => void` | — |
+| `key`        | `(item, index) => string \| number` | -- |
+| `render`     | `(rowEl, item, index) => void` | -- |
 
-### `mountGrid(host, scope, options) → VirtualGrid`
+### `mountGrid(host, scope, options) -> VirtualGrid`
 
 | option           | type     | default |
 |------------------|----------|---------|
-| `rowCount`       | number   | —       |
-| `colCount`       | number   | —       |
-| `rowHeight`      | number   | —       |
-| `colWidth`       | number   | —       |
-| `viewportWidth`  | number   | —       |
-| `viewportHeight` | number   | —       |
+| `rowCount`       | number   | --       |
+| `colCount`       | number   | --       |
+| `rowHeight`      | number   | --       |
+| `colWidth`       | number   | --       |
+| `viewportWidth`  | number   | --       |
+| `viewportHeight` | number   | --       |
 | `overscan`       | number   | 2       |
-| `render`         | `(cellEl, row, col) => void` | — |
+| `render`         | `(cellEl, row, col) => void` | -- |
 
-### `mountVariableList(host, scope, options) → VariableAxis`
+### `mountVariableList(host, scope, options) -> VariableAxis`
 
 | option       | type     | default |
 |--------------|----------|---------|
-| `count`      | number   | —       |
-| `sizeAt`     | `(i) => number` | — |
-| `viewport`   | number   | —       |
+| `count`      | number   | --       |
+| `sizeAt`     | `(i) => number` | -- |
+| `viewport`   | number   | --       |
 | `overscan`   | number   | 3       |
-| `render`     | `(rowEl, index) => void` | — |
+| `render`     | `(rowEl, index) => void` | -- |
+
+Returns the variable axis with `scrollToIndex(index, align?)` attached.
+
+### `measuredAxis(options) -> MeasuredAxis`
+
+| option        | type   | default | notes                                  |
+|---------------|--------|---------|----------------------------------------|
+| `count`       | number | --       |                                        |
+| `estimateSize`| number | --       | per-item size before measurement       |
+| `viewport`    | number | --       |                                        |
+| `overscan`    | number | 3       |                                        |
+
+Auto-height headless axis: a Fenwick tree gives O(log n) `measure(index, size)`
+plus O(log n) offset/find queries. Returns the `variableAxis` surface plus
+`sizeAt(i)` and `measure(index, size)`.
+
+### `mountMeasuredList(host, scope, options) -> MeasuredAxis`
+
+| option        | type   | default | notes                                  |
+|---------------|--------|---------|----------------------------------------|
+| `count`       | number | --       |                                        |
+| `estimateSize`| number | --       |                                        |
+| `viewport`    | number | --       |                                        |
+| `overscan`    | number | 3       |                                        |
+| `render`      | `(rowEl, index) => void` | -- |                         |
+
+Measures each row via `ResizeObserver`, patches the axis, and re-anchors the
+scroll to the item under the viewport top. Returns the measured axis with
+`scrollToIndex` attached.
+
+### `onEndReached(axis, options) -> dispose`
+
+| option      | type        | default | notes                                   |
+|-------------|-------------|---------|-----------------------------------------|
+| `distance`  | number      | 0       | fire within this many items of the end  |
+| `onReached` | `() => void`| --       | called once per count; again after growth |
+
+Headless infinite-loader trigger; works with any axis exposing `count()` and
+`end`. Wire `onReached` to a loader (e.g. `@zakkster/lite-resource`).
+
+### `stickyHeader(firstIndex, groupStarts) -> ReadSignal<number>`
+
+Given `axis.firstIndex` and a sorted ascending array of group-start indices,
+returns a computed of the 0-based ordinal of the group at the top of the
+viewport (`-1` before the first). Bind a pinned header element to it.
 
 ---
 
@@ -454,11 +531,11 @@ Measured on Node 22.22 with `--expose-gc`. Run yourself: `npm run bench`.
   the entire chain. No effect re-runs, no DOM writes, no allocations.
 - **Boundary crossing is ~2M/sec.** That's the cost of recomputing
   `start`/`end`/`offsetStart` and propagating through one bind effect. For
-  60Hz scrolling, you have a ~30,000× budget — boundary crossings are
+  60Hz scrolling, you have a ~30,000× budget -- boundary crossings are
   essentially never the bottleneck.
 - **mountList handles ~800K full scroll events/sec on a 1M-item list** in
   pure Node. The DOM-write savings vs. a naive "render every visible row"
-  approach don't show clearly in a stub (no layout, no paint) — they appear
+  approach don't show clearly in a stub (no layout, no paint) -- they appear
   in the browser, where naive triggers ~21 style writes + reflow per scroll
   event vs lite-virtual's ~1 write per boundary.
 - **Pool size on 1M items: ~21 DOM nodes.** Not 1M. Not 100. Exactly the
@@ -479,11 +556,11 @@ Measured on Node 22.22 with `--expose-gc`. Run yourself: `npm run bench`.
   scrolled past the new end pins `start`/`end` to the new tail; the
   scrollbar shrinks; no off-by-one renders.
 - **Growing `count` mid-scroll.** `setCount(larger)` updates `totalSize`
-  but leaves the visible window where it was — the user's scroll position
+  but leaves the visible window where it was -- the user's scroll position
   is unchanged.
 - **Viewport resize mid-scroll.** The library's `ResizeObserver` reads
   `contentRect.height` and calls `setViewport`. The pool grows to fit;
-  it never shrinks (a `300 → 800 → 300` round-trip retains the larger pool
+  it never shrinks (a `300 -> 800 -> 300` round-trip retains the larger pool
   so the next grow is allocation-free).
 - **`scope.dispose()` is complete.** Every signal, computed, effect,
   listener, AND the renderer's `ResizeObserver` are disposed. Verified by
@@ -493,7 +570,7 @@ Measured on Node 22.22 with `--expose-gc`. Run yourself: `npm run bench`.
   `perView + 2 * overscan`. After that, the pool never grows during scroll.
 - **No internal IntersectionObserver.** The library uses exactly one
   `ResizeObserver` per renderer. External IO on the host can't trigger
-  any internal behavior — it observes `host`'s own `clientHeight`, which
+  any internal behavior -- it observes `host`'s own `clientHeight`, which
   the library does not depend on after mount.
 - **Host becomes keyboard-focusable on mount.** Each renderer sets
   `host.tabIndex = 0` so Arrow / PageUp / PageDown / Spacebar reach the
@@ -502,23 +579,22 @@ Measured on Node 22.22 with `--expose-gc`. Run yourself: `npm run bench`.
 - **The spacer is layout-invariant.** Each renderer's internal spacer is
   `position: absolute`, 1 px wide, `visibility: hidden`, `aria-hidden`. It
   drives `scrollHeight` via an explicit pixel height, independent of the
-  host's formatting context (flex, grid, block — all behave the same). No
+  host's formatting context (flex, grid, block -- all behave the same). No
   margin collapse, no flex-row sideways layout, no sub-pixel rounding.
 
 ---
 
 ## What this is **not**
 
-- **Not a measured / auto-height layer.** `mountVariableList` takes a
-  `sizeAt` you can answer. For "measure-then-correct" (heights unknown until
-  render), build it on top — the windowing/recycling math works verbatim;
-  only the offsets source becomes incremental. (Future
-  `@zakkster/lite-virtual-measure` package.)
+- **Auto-height is measure-then-correct, not pre-layout.** `mountMeasuredList`
+  estimates first and corrects after the `ResizeObserver` fires, re-anchoring the
+  scroll. A row's true height is known one frame after it renders, not before --
+  if you know sizes up front, `mountVariableList` is cheaper.
 - **Not a renderer per row.** Recycling renderers reuse a single `<div>`
   pool. For per-row React/Vue/Solid components, build your own on top of
-  `virtualAxis` — the math is everything you need.
+  `virtualAxis` -- the math is everything you need.
 - **Not for non-scrolling layouts.** Windowing assumes a scroll container.
-  CSS Grid auto-fill, marquee, parallax-without-scroll — different problem.
+  CSS Grid auto-fill, marquee, parallax-without-scroll -- different problem.
 - **Not a framework wrapper.** The recycling renderers expect a lite-element
   scope (`effect`, `on`, `onCleanup`). For other reactive systems, write
   a 20-line adapter or use the math directly.
@@ -529,11 +605,11 @@ Measured on Node 22.22 with `--expose-gc`. Run yourself: `npm run bench`.
 
 | target           | works | notes                                    |
 |------------------|:-----:|------------------------------------------|
-| Node ≥ 18        | ✅    | math only — renderers need a DOM          |
-| Chrome / Edge    | ✅    | `ResizeObserver` shipped 64               |
-| Firefox          | ✅    | RO shipped 69                             |
-| Safari ≥ 13.1    | ✅    | RO shipped 13.1                           |
-| Deno / Bun       | ✅ (math) | ditto Node                            |
+| Node >= 18        | yes    | math only -- renderers need a DOM          |
+| Chrome / Edge    | yes    | `ResizeObserver` shipped 64               |
+| Firefox          | yes    | RO shipped 69                             |
+| Safari >= 13.1    | yes    | RO shipped 13.1                           |
+| Deno / Bun       | yes (math) | ditto Node                            |
 
 ESM only. No CJS build. If you need CJS, bundle through esbuild/rollup.
 
@@ -554,7 +630,7 @@ a 20-line adapter wraps any other reactive system.
 ## FAQ
 
 **Q: Why is `mountList` index-based instead of always keyed?**
-Index-based recycling is O(1) per boundary crossing with zero allocation —
+Index-based recycling is O(1) per boundary crossing with zero allocation --
 the same `<div>` is reused across logical indices. That's the cheapest
 possible scroll path. The trade-off is statelessness: DOM state would
 follow the node, not the row. For static lists (text, derived display),
@@ -562,15 +638,18 @@ that's a non-issue; use `mountList`. For inputs/media/expansion state, use
 `mountKeyedList` and pay the create/remove cost (still 1 per boundary).
 
 **Q: Will my list freeze when the spacer gets huge?**
-No. Browsers handle `style.height = "30000000px"` fine — the scrollbar maps
+No. Browsers handle `style.height = "30000000px"` fine -- the scrollbar maps
 to the value, but no layout cost is proportional to the spacer's pixel
 size. We've tested up to `count * itemSize = 30M px` (1M items × 30px)
 without issue.
 
 **Q: Can I scroll to a specific index?**
-Set `host.scrollTop = index * itemHeight` (fixed) or
-`host.scrollTop = axis.positionAt(index)` (variable). The scroll event
-fires, the axis advances, the renderer follows.
+Yes -- the renderers attach `axis.scrollToIndex(index, align?)` where `align` is
+`"start" | "center" | "end" | "auto"` (`"auto"` only moves when the row is
+off-screen), and the grid attaches `grid.scrollToCell(row, col, align?)`. For
+headless math, every axis exposes `offsetForIndex(index, align?)` returning the
+clamped scroll offset. Wrap it with `behavior: "smooth"` yourself if you want
+animated scrolling.
 
 **Q: What's the difference between `overscan` and the +1 in `perView`?**
 The `+1` is for the partial row at the bottom edge of the viewport that's
@@ -580,13 +659,20 @@ and effect re-run. Three rows on each side is plenty for most workloads.
 
 **Q: My rows have `<input>` and editing causes them to lose focus when I scroll.**
 You're using `mountList` (index-based recycling) with stateful rows. Switch
-to `mountKeyedList` — the node stays with the data row across scrolls.
+to `mountKeyedList` -- the node stays with the data row across scrolls.
 
 **Q: How do I add sticky headers / sub-headers / dividers?**
-Compose: the axis only knows about uniform rows. Add a sticky header
-outside the scroll container, or use `mountVariableList` with the divider
-rows having a height. For row-spanning headers inside the list, your
-`render` callback can switch DOM based on `data[i].kind`.
+For a pinned section header, pass your sorted group-start indices to
+`stickyHeader(axis.firstIndex, groupStarts)` -- it returns a reactive ordinal of
+the group currently at the top of the viewport; bind a pinned header element's
+content to it. The axis itself only knows uniform rows, so inline dividers can
+also be modelled as items whose `render` switches on `data[i].kind`.
+
+**Q: How do I load more as the user scrolls (infinite list)?**
+`onEndReached(axis, { distance, onReached })` fires `onReached` once when the
+window comes within `distance` items of the end, and again only after the count
+grows -- wire `onReached` to your loader (e.g. `@zakkster/lite-resource`'s
+`loadMore`), then `axis.setCount(newLength)` when it resolves.
 
 **Q: Why isn't there a "smooth scroll to index" helper?**
 Because the browser already has `host.scrollTo({ top, behavior: "smooth" })`.
@@ -598,23 +684,23 @@ on render. If it throws, build throws; no inconsistent state is committed.
 Don't make `sizeAt` do anything fancier than an array lookup.
 
 **Q: Can I use this with React / Vue / Svelte?**
-The pure-math axes (`virtualAxis`, `virtualGrid`, `variableAxis`) — yes,
+The pure-math axes (`virtualAxis`, `virtualGrid`, `variableAxis`) -- yes,
 trivially. Subscribe to `start` / `end` from your framework's reactive
-system. The recycling renderers — only if you can supply a lite-element-
+system. The recycling renderers -- only if you can supply a lite-element-
 shaped scope; for that, a 20-line adapter is straightforward.
 
 ---
 
 ## License
 
-MIT © Zahary Shinikchiev
+MIT (c) Zahary Shinikchiev
 
 ---
 
 #### The @zakkster stack
 
-- [@zakkster/lite-signal](https://www.npmjs.com/package/@zakkster/lite-signal) — the reactive primitives this all builds on
-- [@zakkster/lite-element](https://www.npmjs.com/package/@zakkster/lite-element) — Custom Elements with state that survives reparents
-- [@zakkster/lite-time](https://www.npmjs.com/package/@zakkster/lite-time) — drift-corrected wall-clock cadence
-- [@zakkster/lite-form](https://www.npmjs.com/package/@zakkster/lite-form) — headless reactive forms
-- **@zakkster/lite-virtual** — *this package*
+- [@zakkster/lite-signal](https://www.npmjs.com/package/@zakkster/lite-signal) -- the reactive primitives this all builds on
+- [@zakkster/lite-element](https://www.npmjs.com/package/@zakkster/lite-element) -- Custom Elements with state that survives reparents
+- [@zakkster/lite-time](https://www.npmjs.com/package/@zakkster/lite-time) -- drift-corrected wall-clock cadence
+- [@zakkster/lite-form](https://www.npmjs.com/package/@zakkster/lite-form) -- headless reactive forms
+- **@zakkster/lite-virtual** -- *this package*
